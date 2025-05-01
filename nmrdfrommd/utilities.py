@@ -21,7 +21,7 @@ def autocorrelation_function(data: np.ndarray,
     Parameters
     ----------
     data : np.ndarray
-        Input signal (units: Å⁻³).
+        Input signal (units: Å-3).
     use_wiener_khinchin : bool, optional
         If True, use Wiener-Khinchin theorem for more memory-efficient FFT.
         If False (default), use legacy double-zero-padded method.
@@ -31,7 +31,7 @@ def autocorrelation_function(data: np.ndarray,
     Returns
     -------
     np.ndarray
-        Autocorrelation function (units: Å⁻⁶).
+        Autocorrelation function (units: Å-6).
     """
     data = np.asarray(data)
     n = len(data)
@@ -40,7 +40,7 @@ def autocorrelation_function(data: np.ndarray,
         try:
             import cupy as cp
         except ImportError:
-            raise ImportError("CuPy is not installed. Install it with `pip install cupy`.")
+            raise ImportError("CuPy is not installed.")
 
         data_cp = cp.asarray(data)
         n_fft = 2 ** int(cp.ceil(cp.log2(2 * n - 1)))
@@ -66,3 +66,86 @@ def autocorrelation_function(data: np.ndarray,
 
     normalization = np.arange(n, 0, -1)
     return autocorr / normalization
+
+def fourier_transform(data, normalize=False):
+    """
+    Compute the Fourier transform of a time-domain signal.
+
+    Converts time-domain data into frequency-domain data using FFT.
+
+    Input:
+        data[:, 0] -- Time (in picoseconds)
+        data[:, 1] -- Signal amplitude (arbitrary units)
+
+    Output:
+        data[:, 0] -- Frequency (in MHz)
+        data[:, 1] -- Fourier-transformed signal (scaled to s * signal)
+
+    Parameters
+    ----------
+    data : np.ndarray
+        2D array with shape (N, 2) where column 0 is time (ps) and column 1 is signal.
+    normalize : bool, optional
+        If True, apply unitary normalization to the FFT (i.e., divide by sqrt(N)).
+
+    Returns
+    -------
+    np.ndarray
+        Transformed data with shape (M, 2), where M = N//2 + 1:
+        Column 0 is frequency (MHz), column 1 is complex signal (s * signal units).
+    """
+    if data.shape[1] != 2:
+        raise ValueError("Input data must be a 2D array with two columns: time (ps), signal.")
+
+    if len(data) < 2:
+        raise ValueError("Need at least two samples to compute time step.")
+
+    dt_ps = data[1, 0] - data[0, 0] # in picoseconds
+    dt = dt_ps * cst.pico # convert to seconds
+
+    n = len(data)
+    freqs = np.fft.rfftfreq(n, dt) / cst.mega  # in MHz
+    fft_norm = 'ortho' if normalize else None
+    spectrum = np.fft.rfft(data[:, 1], norm=fft_norm) * dt * 2
+
+    return np.column_stack((freqs, spectrum))
+
+def find_nearest(data, value):
+    """Find nearest value within an array.
+
+    Return the index of the nearest point.
+    
+    **Parameters**
+
+    data : numpy.ndarray
+    value : numpy.float
+
+    **Returns**
+    ids : numpy.int
+    """
+    data = np.asarray(data)
+    idx = (np.abs(data - value)).argmin()
+    return idx
+
+def calculate_tau(J, gij, dim, integral=False, t=None, oneDarray=False):
+    """
+    Calculate correlation time using tau = 0.5 J(0) / G(0).
+
+    The unit are in picosecond. If only the 0th m order is used (isotropic=True),
+    one value for tau is returned, if all three m orders are used (isotropic=False),
+    three values for tau are returned.
+    """
+
+    if oneDarray:
+        tau = 0.5*(J[0] / gij[0]) / cst.pico
+    else:
+        tau = []
+        for m in range(dim):
+            if integral:
+                if t is None:
+                    print("time vector must be supplied with integral=True")
+                else:
+                    tau.append(np.trapz(gij[m], t)/gij.T[0][m])
+            else:
+                tau.append(0.5*(J[m][0] / gij.T[0][m]) / cst.pico)
+    return np.array(tau)
