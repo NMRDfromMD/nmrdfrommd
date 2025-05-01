@@ -9,6 +9,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import numpy as np
+from scipy.special import sph_harm
 from scipy import constants as cst
 
 
@@ -57,9 +58,8 @@ def autocorrelation_function(data: np.ndarray,
         autocorr = np.fft.ifft(power_spectrum).real[:n]
 
     else:
-        n_pad = 2 ** int(np.ceil(np.log2(n)))
-        data_padded = np.pad(data, (0, n_pad - n))
-        data_padded = np.pad(data_padded, (0, data_padded.size))
+        n_fft = 2 ** int(np.ceil(np.log2(2 * n - 1)))
+        data_padded = np.pad(data, (0, n_fft - n))
         fdata = np.fft.fft(data_padded)
         power_spectrum = fdata * np.conj(fdata)
         autocorr = np.fft.ifft(power_spectrum).real[:n]
@@ -174,3 +174,50 @@ def calculate_tau(J, gij, dim, integral=False, t=None, oneDarray=False):
                 tau_m = 0.5 * J[m][0] / gij[0][m]
             tau.append(tau_m / cst.pico)
         return np.array(tau)
+
+def compute_rij(pos_i, pos_j, box, pbc=True):
+    """Compute distance vector between atoms, with optional PBC."""
+    if pbc:
+        rij = np.remainder(pos_i - pos_j + box[:3]/2., box[:3]) - box[:3]/2
+    else:
+        rij = pos_i - pos_j
+    return rij.T
+
+def cartesian_to_spherical(rij):
+    """Convert Cartesian to spherical coordinates."""
+    x, y, z = rij
+    r = np.sqrt(x**2 + y**2 + z**2)
+    # r = np.linalg.norm(rij)
+    theta = np.arctan2(np.sqrt(x**2 + y**2), z)
+    phi = np.arctan2(y, x)
+    return r, theta, phi
+
+def compute_F(r, theta, phi, alpha_m, isotropic=True):
+    """Evaluate the spherical harmonics-based F function.
+    
+    If isotropic=True, takes only the real part of the spherical harmonic product.
+    If isotropic=False, returns the full complex result.
+    """
+    m_values = [0] if isotropic else [-1, 0, 1]
+    F_val = [
+        (alpha_m[m + 1] * sph_harm(m, 2, phi, theta)).real / r**3 if isotropic
+        else alpha_m[m + 1] * sph_harm(m, 2, phi, theta) / r**3
+        for m in m_values
+    ]
+    return F_val
+
+# Gyromagnetic ratios in rad/s/T
+GYROMAGNETIC_RATIOS = {
+    "H": 2 * np.pi * 42.576e6,
+    "C": 2 * np.pi * 10.705e6,
+    "N": 2 * np.pi * -4.316e6,
+    "F": 2 * np.pi * 40.053e6,
+    "P": 2 * np.pi * 17.235e6,
+}
+
+def get_gyromagnetic_ratio(atom: str) -> float:
+    """Return the gyromagnetic ratio (rad/s/T) of a given atom symbol."""
+    try:
+        return GYROMAGNETIC_RATIOS[atom.upper()]
+    except KeyError:
+        raise ValueError(f"Unknown atom type '{atom}'. Add it to GYROMAGNETIC_RATIOS.")

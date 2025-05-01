@@ -8,16 +8,25 @@
 # Released under the GNU Public Licence, v3 or any higher version
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import random
-
-import MDAnalysis.core.groups
 import numpy as np
 from scipy import constants as cst
 from scipy.interpolate import interp1d
-from scipy.special import sph_harm
+import MDAnalysis as mda
+import logging
 
-from .utilities import autocorrelation_function, find_nearest, fourier_transform
+# Set up basic configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S"
+)
+logger = logging.getLogger(__name__)
+logging.getLogger("MDAnalysis").setLevel(logging.WARNING) # Suppress MDAnalysis logs
 
+# from .utilities import autocorrelation_function, find_nearest, fourier_transform, \
+#     compute_rij, cartesian_to_spherical, compute_F
+from utilities import autocorrelation_function, find_nearest, fourier_transform, \
+    compute_rij, cartesian_to_spherical, compute_F, get_gyromagnetic_ratio
 
 class NMR:
     """Calculate NMR relaxation time from MDAnalysis universe.
@@ -55,9 +64,9 @@ class NMR:
     """
 
     def __init__(self, 
-                u: MDAnalysis.Universe,
-                atom_group: MDAnalysis.AtomGroup,
-                neighbor_group: MDAnalysis.AtomGroup = None,
+                u: mda.Universe,
+                atom_group: mda.AtomGroup,
+                neighbor_group: mda.AtomGroup = None,
                 type_analysis: str = "full",
                 number_i: int = 0,
                 isotropic: bool = True,
@@ -98,7 +107,12 @@ class NMR:
         self.GAMMA = None
 
     def run_analysis(self):
-        """Run full NMR analysis pipeline."""
+        """Run full NMR analysis pipeline.
+        
+        # Example of use:
+        nmr = NMR(u, atom_group, type_analysis='inter_molecular')
+        nmr.run_analysis()
+        """
         self.initialize()
         self.collect_data()
         self.finalize()
@@ -127,12 +141,16 @@ class NMR:
         K has the units of m^6/s^2
         alpha_m are normalizing coefficient for harmonic function
         """
-        self.GAMMA = 2 * np.pi * 42.6e6 #todo offer this a an input parameter
-        self.K = (3 / 2) * (cst.mu_0 / 4 / np.pi) ** 2 \
-            * cst.hbar ** 2 * self.GAMMA ** 4 * self.spin * (1 + self.spin)
-        self.alpha_m = [np.sqrt(16 * np.pi / 5),
-                        np.sqrt(8 * np.pi / 15),
-                        np.sqrt(32 * np.pi / 15)]
+        self.GAMMA = get_gyromagnetic_ratio("H") # H is enforced, improve in the future
+
+        self.K = ((3 / 2) * (cst.mu_0 / (4 * np.pi)) ** 2 *
+                cst.hbar ** 2 * self.GAMMA ** 4 * self.spin * (1 + self.spin))
+
+        self.alpha_m = [
+            np.sqrt(16 * np.pi / 5),
+            np.sqrt(8 * np.pi / 15),
+            np.sqrt(32 * np.pi / 15)
+        ]
 
     def select_target_i(self):
         """Select the target atoms i
@@ -144,12 +162,11 @@ class NMR:
         if self.number_i == 0:
             self.index_i = np.array(self.target_i.atoms.indices)
         elif self.number_i > self.target_i.atoms.n_atoms:
-            print('Note : number_i is larger than the number of atoms in group target i\n'
-                  '-> The number_i value will be ignored'
-                  '-> All the atoms of the group i have been selected')
+            logger.warning("`number_i` is larger than the number of atoms in group `target_i`. "
+               "It will be ignored — all atoms in the group will be selected.")
             self.index_i = np.array(self.target_i.atoms.indices)
         else:
-            self.index_i = np.array(random.choices(self.target_i.atoms.indices, k=self.number_i))
+            self.index_i = np.random.choice(self.target_i.atoms.indices, size=self.number_i, replace=False)
 
     def collect_data(self):
         """Collect data by looping over atoms, time, and evaluate correlation"""
@@ -178,24 +195,24 @@ class NMR:
         different residues as group i.
         For full analysis, group j are made of atoms that are not in group i.
         """
-        if self.type_analysis == "intra_molecular":
-            same_residue : bool = self.neighbor_j.resids == self.resids_i
-            different_atom : bool = self.neighbor_j.indices != self.index_i[self.cpt_i]
-            index_j = self.neighbor_j.atoms.indices[same_residue & different_atom]
-            str_j = ' '.join(str(e) for e in index_j)
-        elif self.type_analysis == "inter_molecular":
-            different_residue : bool = self.neighbor_j.resids != self.resids_i
-            index_j = self.neighbor_j.atoms.indices[different_residue]
-            str_j = ' '.join(str(e) for e in index_j)
-        elif self.type_analysis == "full":
-            different_atom : bool = self.neighbor_j.indices != self.index_i[self.cpt_i]
-            index_j = self.neighbor_j.atoms.indices[different_atom]
-            str_j = ' '.join(str(e) for e in index_j)
-        if len(str_j) == 0:
-            raise ValueError("Empty atom groups j \n"
-                             "Wrong combination of type_analysis and group selection?")
-        else:
-            self.group_j = self.u.select_atoms('index ' + str_j)
+        res_id_i = self.resids_i[0]
+        idx_i = self.index_i[self.cpt_i]
+        
+        conditions = {
+            "intra_molecular": lambda: (self.neighbor_j.resids == res_id_i) & (self.neighbor_j.indices != idx_i),
+            "inter_molecular": lambda: (self.neighbor_j.resids != res_id_i),
+            "full": lambda: (self.neighbor_j.indices != idx_i),
+        }
+        
+        if self.type_analysis not in conditions:
+            raise ValueError(f"Unknown type_analysis: {self.type_analysis}")
+        
+        index_j = self.neighbor_j.atoms.indices[conditions[self.type_analysis]()]
+        if len(index_j) == 0:
+            raise ValueError("Empty atom groups j. Wrong combination of type_analysis and group selection?")
+        
+        str_j = ' '.join(map(str, index_j))
+        self.group_j = self.u.select_atoms(f'index {str_j}')
 
     def initialise_data(self):
         """Initialise arrays.
@@ -231,59 +248,24 @@ class NMR:
             self.position_i = self.group_i.atoms.positions
             self.position_j = self.group_j.atoms.positions
             self.box = ts.dimensions
+
             # ensure that the box is orthonormal
             if not np.all(self.box[3:] == self.box[3:][0]) & np.all(self.box[3:][0] == 90.0):
                 raise ValueError("NMRforMD does not accept non-orthogonal box"
                                  "You can use triclinic_to_orthorhombic from the package"
                                  "lipyphilic to convert the trajectory file.")
-            self.vector_rij()
-            self.cartesian_to_spherical()
-            self.evaluate_function_F()
-            self.data[:, cpt] = self.sph_val
-
-
-    def vector_rij(self):
-        """Calculate distance between position_i and position_j.
         
-        By defaults, periodic boundary conditions are assumed. Pbc can be turned off using pbc = False.
-        """
-        if self.pbc:
-            self.rij = (np.remainder(self.position_i - self.position_j
-                         + self.box[:3]/2., self.box[:3]) - self.box[:3]/2.).T
-        else:
-            self.rij = (self.position_i - self.position_j).T
-
-    def cartesian_to_spherical(self):
-        """Convert cartesian coordinate to spherical."""
-        self.r = np.sqrt(self.rij[0]**2 + self.rij[1]**2 + self.rij[2]**2)
-        self.theta = np.arctan2(np.sqrt(self.rij[0]**2 + self.rij[1]**2), self.rij[2])
-        self.phi = np.arctan2(self.rij[1], self.rij[0])
-
-    def evaluate_function_F(self):
-        """Evaluate the F functions.
-
-        F = alpha Y / r ** 3
-        Y : spherical harmonic
-        r : spin-spin distance
-        
-        convention : theta = polar angle, phi = azimuthal angle
-        note: scipy uses the opposite convention
-
-        F has the units of Angstrom^(-6)
-        """
-        F_val = []
-        for m in range(self.dim):
-            F_val.append(self.alpha_m[m] * sph_harm(m, 2, self.phi, self.theta) / np.power(self.r, 3))
-        if self.isotropic:
-            F_val[0] = F_val[0].real
-        self.sph_val = F_val
+            rij = compute_rij(self.position_i, self.position_j, self.box, self.pbc)
+            r, theta, phi = cartesian_to_spherical(rij)
+            F_val = compute_F(r, theta, phi, self.alpha_m, self.isotropic)
+            # F_val = np.array(F_val)  # shape: (dim, n_j_atoms)
+            self.data[:, cpt] = F_val
 
     def calculate_correlation_ij(self):
         """Calculate the correlation function."""
         for idx_j in range(self.group_j.atoms.n_atoms):
             for m in range(self.dim):
                 self.gij[m] += autocorrelation_function(self.data[m, :, idx_j])
-
         self.gij = np.real(self.gij)
 
     def finalize(self):
@@ -318,23 +300,20 @@ class NMR:
         self.f = np.real(fij.T[0])
 
     def calculate_spectrum(self):
-        """Calculate spectrums R1 and R2 from J."""
-        inter1d_0 = interp1d(self.f, self.J[0], fill_value="extrapolate")
+        """Calculate relaxation rates R1 and R2 from spectral density J."""
+        prefactor = self.K / cst.angstrom ** 6
+
+        J0 = interp1d(self.f, self.J[0], fill_value="extrapolate")(self.f)
         if self.isotropic:
-            self.R1 = self.K/cst.angstrom ** 6 * (inter1d_0(self.f)
-                                                  + 4 * inter1d_0(2 * self.f) )/6
-            self.R2 = self.K/cst.angstrom ** 6 * (3/2*inter1d_0(self.f[0])
-                                                  + 5/2*inter1d_0(self.f)
-                                                  + inter1d_0(2 * self.f) )/6
-        elif self.isotropic is False:
-            inter1d_1 = interp1d(self.f, self.J[1], fill_value="extrapolate")
-            inter1d_2 = interp1d(self.f, self.J[2], fill_value="extrapolate")
-            self.R1 = self.K/cst.angstrom ** 6 * (inter1d_1(self.f)
-                                                  + inter1d_2(2 * self.f))
-            self.R2 = self.K/cst.angstrom ** 6 * ((1/4)*(inter1d_0(self.f[0])
-                                                         + 10*inter1d_1(self.f)
-                                                         + inter1d_2(2 * self.f)))
-        
+            J02 = interp1d(self.f, self.J[0], fill_value="extrapolate")(2 * self.f)
+            self.R1 = prefactor * (J0 + 4 * J02) / 6
+            self.R2 = prefactor * (3/2 * J0[0] + (5/2) * J0 + J02) / 6
+        else:
+            J1 = interp1d(self.f, self.J[1], fill_value="extrapolate")(self.f)
+            J2 = interp1d(self.f, self.J[2], fill_value="extrapolate")(2 * self.f)
+            self.R1 = prefactor * (J1 + J2)
+            self.R2 = prefactor * (1/4) * (J0[0] + 10 * J1 + J2)
+
     def calculate_relaxationtime(self):
         """Calculate the relaxation time at a given frequency f0 (default is 0)"""
         if self.f0 is None:
