@@ -26,7 +26,7 @@ logging.getLogger("MDAnalysis").setLevel(logging.WARNING) # Suppress MDAnalysis 
 # from .utilities import autocorrelation_function, find_nearest, fourier_transform, \
 #     compute_rij, cartesian_to_spherical, compute_F
 from utilities import autocorrelation_function, find_nearest, fourier_transform, \
-    compute_rij, cartesian_to_spherical, compute_F, get_gyromagnetic_ratio
+    compute_rij, cartesian_to_spherical, compute_F, get_gyromagnetic_ratio, log_bin
 
 class NMR:
     """Calculate NMR relaxation time from MDAnalysis universe.
@@ -74,7 +74,8 @@ class NMR:
                 actual_dt: float = None,
                 hydrogen_per_atom: float = 1.0,
                 spin: float = 1/2,
-                pbc: bool = True):
+                pbc: bool = True,
+                num_log_points: int = 100):
         
         """Initialize class and store parameters."""
         self.u = u
@@ -89,6 +90,7 @@ class NMR:
         self.hydrogen_per_atom = hydrogen_per_atom
         self.spin = spin
         self.pbc = pbc
+        self.num_log_points = num_log_points
 
         # placeholder attributes (set during analysis)
         self.index_i = None
@@ -313,6 +315,12 @@ class NMR:
             J2 = interp1d(self.f, self.J[2], fill_value="extrapolate")(2 * self.f)
             self.R1 = prefactor * (J1 + J2)
             self.R2 = prefactor * (1/4) * (J0[0] + 10 * J1 + J2)
+
+        _, R1_log = log_bin(self.f, self.R1, num_bins=self.num_log_points)
+        f_log, R2_log = log_bin(self.f, self.R2, num_bins=self.num_log_points)
+        self.f_log = f_log
+        self.R1_log = R1_log
+        self.R2_log = R2_log
 
     def calculate_relaxationtime(self):
         """Calculate the relaxation time at a given frequency f0 (default is 0)"""
