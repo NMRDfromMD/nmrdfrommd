@@ -111,41 +111,66 @@ def fourier_transform(data, normalize=False):
     return np.column_stack((freqs, spectrum))
 
 def find_nearest(data, value):
-    """Find nearest value within an array.
+    """
+    Return the index of the element in `data` closest to `value`.
 
-    Return the index of the nearest point.
-    
-    **Parameters**
+    Parameters
+    ----------
+    data : array-like
+        1D array of numeric values.
+    value : float
+        Value to find the nearest match for.
 
-    data : numpy.ndarray
-    value : numpy.float
-
-    **Returns**
-    ids : numpy.int
+    Returns
+    -------
+    int
+        Index of the element in `data` closest to `value`.
     """
     data = np.asarray(data)
-    idx = (np.abs(data - value)).argmin()
-    return idx
+    if data.ndim != 1:
+        raise ValueError("Input `data` must be a 1D array.")
+    return np.abs(data - value).argmin()
 
 def calculate_tau(J, gij, dim, integral=False, t=None, oneDarray=False):
     """
-    Calculate correlation time using tau = 0.5 J(0) / G(0).
+    Compute the correlation time τ = 0.5 * J(0) / G(0) or from integral.
 
-    The unit are in picosecond. If only the 0th m order is used (isotropic=True),
-    one value for tau is returned, if all three m orders are used (isotropic=False),
-    three values for tau are returned.
+    Parameters
+    ----------
+    J : np.ndarray
+        Spectral density array (shape: [dim, N] or [N]).
+    gij : np.ndarray
+        Time correlation function values (shape: [dim, N] or [N]).
+    dim : int
+        Dimensionality of the system (e.g., 3 for m = -1, 0, +1).
+    integral : bool, optional
+        If True, use integral of gij to compute τ.
+    t : np.ndarray, optional
+        Time vector (required if integral=True).
+    oneDarray : bool, optional
+        If True, assume 1D inputs for isotropic case.
+
+    Returns
+    -------
+    np.ndarray
+        Correlation times τ in picoseconds.
     """
-
     if oneDarray:
-        tau = 0.5*(J[0] / gij[0]) / cst.pico
+        if integral:
+            if t is None:
+                raise ValueError("Time vector `t` must be provided when integral=True.")
+            tau = np.trapz(gij, t) / gij[0]
+        else:
+            tau = 0.5 * J[0] / gij[0]
+        return np.array([tau / cst.pico])  # ensure array output
     else:
         tau = []
         for m in range(dim):
             if integral:
                 if t is None:
-                    print("time vector must be supplied with integral=True")
-                else:
-                    tau.append(np.trapz(gij[m], t)/gij.T[0][m])
+                    raise ValueError("Time vector `t` must be provided when integral=True.")
+                tau_m = np.trapz(gij[m], t) / gij[m, 0]
             else:
-                tau.append(0.5*(J[m][0] / gij.T[0][m]) / cst.pico)
-    return np.array(tau)
+                tau_m = 0.5 * J[m][0] / gij[0][m]
+            tau.append(tau_m / cst.pico)
+        return np.array(tau)
