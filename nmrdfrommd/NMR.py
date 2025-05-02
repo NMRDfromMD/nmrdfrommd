@@ -2,7 +2,7 @@
 """Main file for NMRDfromMD package."""
 # -*- Mode: python; tab-width: 4; indent-tabs-mode:nil; coding:utf-8 -*-
 #
-# Copyright (c) 2023 Authors and contributors
+# Copyright (c) 2023-2025 Authors and contributors
 # Simon Gravelle
 #
 # Released under the GNU Public Licence, v3 or any higher version
@@ -23,10 +23,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logging.getLogger("MDAnalysis").setLevel(logging.WARNING) # Suppress MDAnalysis logs
 
-# from .utilities import autocorrelation_function, find_nearest, fourier_transform, \
-#     compute_rij, cartesian_to_spherical, compute_F
-from utilities import autocorrelation_function, find_nearest, fourier_transform, \
-    compute_rij, cartesian_to_spherical, compute_F, get_gyromagnetic_ratio, log_bin
+from .utilities import autocorrelation_function, find_nearest, fourier_transform, \
+     compute_rij, cartesian_to_spherical, compute_F, get_gyromagnetic_ratio, log_bin
+# from utilities import autocorrelation_function, find_nearest, fourier_transform, \
+#      compute_rij, cartesian_to_spherical, compute_F, get_gyromagnetic_ratio, log_bin
 
 class NMR:
     """Calculate NMR relaxation time from MDAnalysis universe.
@@ -50,14 +50,14 @@ class NMR:
         If isotropic is true, only the spherical harmonic of order 0 is considered, 
         which is usually valid for bulk systems. For non-isotropic systems,
         use ``False``.
-    f0 : int, default ``None``
+    target_frequency : int, default ``None``
         Frequency at which ``T1`` and ``T2`` are calculated.
         If ``None``, ``f = 0`` is used.
-    actual_dt : float, default ``None``
+    frame_interval : float, default ``None``
         Can be used to specify a different time interface between frames than the 
         one detected by MDAnalysis.
     hydrogen_per_atom : float, default 1.0
-        Specify the number of hydrogen per atom, usefull for 
+        Specify the number of hydrogen per atom, useful for 
         coarse-grained simulations.
     pdb : bool, default True
         To turn off/on the periodic boundary condition treatment.            
@@ -70,8 +70,8 @@ class NMR:
                 type_analysis: str = "full",
                 number_i: int = 0,
                 isotropic: bool = True,
-                f0: float = None,
-                actual_dt: float = None,
+                target_frequency: float = None,
+                frame_interval: float = None,
                 hydrogen_per_atom: float = 1.0,
                 spin: float = 1/2,
                 pbc: bool = True,
@@ -85,8 +85,8 @@ class NMR:
         self.number_i = number_i
         self.isotropic = isotropic
         self.dim = 1 if isotropic else 3
-        self.f0 = f0
-        self.actual_dt = actual_dt
+        self.target_frequency = target_frequency
+        self.frame_interval = frame_interval
         self.hydrogen_per_atom = hydrogen_per_atom
         self.spin = spin
         self.pbc = pbc
@@ -138,7 +138,7 @@ class NMR:
     def define_constants(self):
         """Define prefactors.
 
-        See this page for details : https://nmrformd.readthedocs.io
+        See this page for details : https://nmrdfrommd.github.io
         Gamma is the gyromagnetic constant of 1H in Hz/T or C/kg
         K has the units of m^6/s^2
         alpha_m are normalizing coefficient for harmonic function
@@ -155,7 +155,7 @@ class NMR:
         ]
 
     def select_target_i(self):
-        """Select the target atoms i
+        """Select the target atoms i.
         
         If number_i=0, select all atoms in target_i
         If number_i > target_i.atoms.n_atoms, raise message
@@ -234,10 +234,10 @@ class NMR:
                                     dtype=np.complex64)
         self.gij = np.zeros((self.dim,  self.u.trajectory.n_frames),
                                 dtype=np.float32)
-        if self.actual_dt is None:
+        if self.frame_interval is None:
             self.timestep = np.round(self.u.trajectory.dt, 4)
         else:
-            self.timestep = self.actual_dt
+            self.timestep = self.frame_interval
         self.t = np.arange(self.u.trajectory.n_frames) * self.timestep
 
     def loop_over_trajectory(self):
@@ -251,8 +251,9 @@ class NMR:
             self.position_j = self.group_j.atoms.positions
             self.box = ts.dimensions
 
-            # ensure that the box is orthonormal
-            if not np.all(self.box[3:] == self.box[3:][0]) & np.all(self.box[3:][0] == 90.0):
+            # Ensure that the box is orthonormal
+            angles = self.box[3:]
+            if not (np.allclose(angles, angles[0]) and np.isclose(angles[0], 90.0)):
                 raise ValueError("NMRforMD does not accept non-orthogonal box"
                                  "You can use triclinic_to_orthorhombic from the package"
                                  "lipyphilic to convert the trajectory file.")
@@ -323,11 +324,11 @@ class NMR:
         self.R2_log = R2_log
 
     def calculate_relaxationtime(self):
-        """Calculate the relaxation time at a given frequency f0 (default is 0)"""
-        if self.f0 is None:
+        """Calculate the relaxation time at a given frequency target_frequency (default is 0)"""
+        if self.target_frequency is None:
             self.T1 = 1/self.R1[0]
             self.T2 = 1/self.R2[0]
         else:
-            idx = find_nearest(self.f, self.f0)
+            idx = find_nearest(self.f, self.target_frequency)
             self.T1 = 1 / self.R1[idx]
             self.T2 = 1 / self.R2[idx]

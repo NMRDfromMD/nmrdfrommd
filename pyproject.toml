@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nmrdfrommd"
+version = "0.1.0"
+description = "A package for analyzing NMR data from MD simulations"
+authors = [
+    { name="Simon", email="simon.gravelle@cnrs.fr" }
+]
+readme = "README.md"
+requires-python = ">=3.12.3"
+dependencies = [
+    "numpy", "scipy", "MDAnalysis", "logging"
+]
+
+[project.urls]
+Homepage = "https://nmrdfrommd.github.io/"
+
+[tool.setuptools]
+packages = ["nmrdfrommd"]
+
