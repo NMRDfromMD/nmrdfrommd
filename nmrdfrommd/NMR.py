@@ -28,7 +28,7 @@ from .utilities import autocorrelation_function, find_nearest, fourier_transform
 # from utilities import autocorrelation_function, find_nearest, fourier_transform, \
 #      compute_rij, cartesian_to_spherical, compute_F, get_gyromagnetic_ratio, log_bin
 
-class NMR:
+class NMRD:
     """Calculate NMR relaxation time from MDAnalysis universe.
 
     Parameters
@@ -79,8 +79,8 @@ class NMR:
         
         """Initialize class and store parameters."""
         self.u = u
-        self.target_i = atom_group
-        self.neighbor_j = neighbor_group or atom_group
+        self.atom_group = atom_group
+        self.neighbor_group = neighbor_group or atom_group
         self.type_analysis = type_analysis
         self.number_i = number_i
         self.isotropic = isotropic
@@ -123,16 +123,16 @@ class NMR:
         """Prepare the calculation"""
         self.verify_entry()
         self.define_constants()
-        self.select_target_i()
+        self.select_atom_group()
 
     def verify_entry(self):
         """Verify that entries are correct, and that groups are not empty."""
         possible_analysis = ["inter_molecular", "intra_molecular", "full"]
         if self.type_analysis not in possible_analysis:
             raise ValueError("type_analysis can only be inter_molecular, intra_molecular, and full.")      
-        if self.target_i.n_atoms == 0:
+        if self.atom_group.n_atoms == 0:
             raise ValueError("Empty atom group")
-        if self.neighbor_j.n_atoms == 0:
+        if self.neighbor_group.n_atoms == 0:
             raise ValueError("Empty neighbor atom group")
 
     def define_constants(self):
@@ -154,21 +154,21 @@ class NMR:
             np.sqrt(32 * np.pi / 15)
         ]
 
-    def select_target_i(self):
+    def select_atom_group(self):
         """Select the target atoms i.
         
-        If number_i=0, select all atoms in target_i
-        If number_i > target_i.atoms.n_atoms, raise message
-        Else, if 0<number_i<target_i.atoms.n_atoms, select atoms randomly
+        If number_i=0, select all atoms in atom_group
+        If number_i > atom_group.atoms.n_atoms, raise message
+        Else, if 0<number_i<atom_group.atoms.n_atoms, select atoms randomly
         """
         if self.number_i == 0:
-            self.index_i = np.array(self.target_i.atoms.indices)
-        elif self.number_i > self.target_i.atoms.n_atoms:
-            logger.warning("`number_i` is larger than the number of atoms in group `target_i`. "
+            self.index_i = np.array(self.atom_group.atoms.indices)
+        elif self.number_i > self.atom_group.atoms.n_atoms:
+            logger.warning("`number_i` is larger than the number of atoms in group `atom_group`. "
                "It will be ignored — all atoms in the group will be selected.")
-            self.index_i = np.array(self.target_i.atoms.indices)
+            self.index_i = np.array(self.atom_group.atoms.indices)
         else:
-            self.index_i = np.random.choice(self.target_i.atoms.indices, size=self.number_i, replace=False)
+            self.index_i = np.random.choice(self.atom_group.atoms.indices, size=self.number_i, replace=False)
 
     def collect_data(self):
         """Collect data by looping over atoms, time, and evaluate correlation"""
@@ -201,15 +201,15 @@ class NMR:
         idx_i = self.index_i[self.cpt_i]
         
         conditions = {
-            "intra_molecular": lambda: (self.neighbor_j.resids == res_id_i) & (self.neighbor_j.indices != idx_i),
-            "inter_molecular": lambda: (self.neighbor_j.resids != res_id_i),
-            "full": lambda: (self.neighbor_j.indices != idx_i),
+            "intra_molecular": lambda: (self.neighbor_group.resids == res_id_i) & (self.neighbor_group.indices != idx_i),
+            "inter_molecular": lambda: (self.neighbor_group.resids != res_id_i),
+            "full": lambda: (self.neighbor_group.indices != idx_i),
         }
         
         if self.type_analysis not in conditions:
             raise ValueError(f"Unknown type_analysis: {self.type_analysis}")
         
-        index_j = self.neighbor_j.atoms.indices[conditions[self.type_analysis]()]
+        index_j = self.neighbor_group.atoms.indices[conditions[self.type_analysis]()]
         if len(index_j) == 0:
             raise ValueError("Empty atom groups j. Wrong combination of type_analysis and group selection?")
         
