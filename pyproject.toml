@@ -12,7 +12,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.12.3"
 dependencies = [
-    "numpy", "scipy", "MDAnalysis", "logging"
+    "numpy", "scipy", "MDAnalysis"
 ]
 
 [project.urls]
