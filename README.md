@@ -1,4 +1,4 @@
-# NMRforMD
+# NMRDfromMD
 
 Dipolar Nuclear Magnetic Resonance from Molecular Dynamics
 (NMRDfromMD) simulations is a Python toolkit designed for the computation of
