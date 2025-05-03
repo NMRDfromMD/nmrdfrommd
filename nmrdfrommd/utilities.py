@@ -12,7 +12,6 @@ import numpy as np
 from scipy.special import sph_harm
 from scipy import constants as cst
 
-
 def autocorrelation_function(data: np.ndarray,
                              use_wiener_khinchin: bool = False,
                              use_gpu: bool = False) -> np.ndarray:
@@ -58,12 +57,12 @@ def autocorrelation_function(data: np.ndarray,
         autocorr = np.fft.ifft(power_spectrum).real[:n]
 
     else:
-        n_fft = 2 ** int(np.ceil(np.log2(2 * n - 1)))
+        n_fft = 2 ** int(np.ceil(np.log2(n)))
         data_padded = np.pad(data, (0, n_fft - n))
+        data_padded = np.pad(data_padded, (0, data_padded.shape[0]))
         fdata = np.fft.fft(data_padded)
         power_spectrum = fdata * np.conj(fdata)
         autocorr = np.fft.ifft(power_spectrum).real[:n]
-
     normalization = np.arange(n, 0, -1)
     return autocorr / normalization
 
@@ -187,7 +186,6 @@ def cartesian_to_spherical(rij):
     """Convert Cartesian to spherical coordinates."""
     x, y, z = rij
     r = np.sqrt(x**2 + y**2 + z**2)
-    # r = np.linalg.norm(rij)
     theta = np.arctan2(np.sqrt(x**2 + y**2), z)
     phi = np.arctan2(y, x)
     return r, theta, phi
@@ -198,13 +196,19 @@ def compute_F(r, theta, phi, alpha_m, isotropic=True):
     If isotropic=True, takes only the real part of the spherical harmonic product.
     If isotropic=False, returns the full complex result.
     """
+    # Define the m values based on whether the system is isotropic
     m_values = [0] if isotropic else [-1, 0, 1]
-    F_val = [
-        (alpha_m[m + 1] * sph_harm(m, 2, phi, theta)).real / r**3 if isotropic
-        else alpha_m[m + 1] * sph_harm(m, 2, phi, theta) / r**3
-        for m in m_values
-    ]
+    F_val = []
+    for m in m_values:
+        # Calculate the spherical harmonic for the current m value
+        sph_harm_value = sph_harm(m, 2, phi, theta)
+        # Apply the coefficient alpha_m, adjust for isotropy, and scale by r^3
+        if isotropic:
+            F_val.append((alpha_m[m] * sph_harm_value).real / r**3)
+        else:
+            F_val.append(alpha_m[m] * sph_harm_value / r**3)
     return F_val
+
 
 # Gyromagnetic ratios in rad/s/T
 GYROMAGNETIC_RATIOS = {

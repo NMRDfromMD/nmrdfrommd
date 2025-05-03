@@ -147,7 +147,7 @@ class NMRD:
 
         self.K = ((3 / 2) * (cst.mu_0 / (4 * np.pi)) ** 2 *
                 cst.hbar ** 2 * self.GAMMA ** 4 * self.spin * (1 + self.spin))
-
+        
         self.alpha_m = [
             np.sqrt(16 * np.pi / 5),
             np.sqrt(8 * np.pi / 15),

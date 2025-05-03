@@ -132,23 +132,22 @@ def test_distance(twomol_universe):
     assert np.isclose(theta[0], np.pi/2)
     assert np.isclose(phi[0], 0)
 
-if False:
-    def test_correlation(twomol_universe):
-        """Assert that the calculated correlation is correct."""
-        u, group_H2O = twomol_universe
+def test_correlation(twomol_universe):
+    """Assert that the calculated correlation is correct."""
+    u, group_H2O = twomol_universe
 
-        nmrd_pbc = NMRD(
-            u=u,
-            atom_group=group_H2O,
-            pbc=True)
-        nmrd_pbc.run_analysis()
+    nmrd_pbc = NMRD(
+        u=u,
+        atom_group=group_H2O,
+        pbc=True)
+    nmrd_pbc.run_analysis()
 
-        assert np.float32(np.round(nmrd_pbc.gij[0][0], 7)) == np.float32(np.round(1/8**6, 7))
+    assert np.float32(np.round(nmrd_pbc.gij[0][0], 7)) == np.float32(np.round(1/8**6, 7))
 
-        nmrd_nopbc = NMRD(
-            u=u,
-            atom_group=group_H2O,
-            pbc=False)
-        nmrd_nopbc.run_analysis()
+    nmrd_nopbc = NMRD(
+        u=u,
+        atom_group=group_H2O,
+        pbc=False)
+    nmrd_nopbc.run_analysis()
 
-        assert np.float32(np.round(nmrd_nopbc.gij[0][0], 7)) == np.float32(np.round(1/10**6, 7))
+    assert np.float32(np.round(nmrd_nopbc.gij[0][0], 7)) == np.float32(np.round(1/10**6, 7))
