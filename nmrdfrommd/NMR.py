@@ -175,7 +175,6 @@ class NMRD:
         # Loop on all the atom of group i
         for cpt_i, _ in enumerate(self.index_i):
             self.cpt_i = cpt_i
-            #self.atom_index_i = atom_index_i # not used
             self.select_atoms_group_i()
             self.select_atoms_group_j()
             if cpt_i == 0:

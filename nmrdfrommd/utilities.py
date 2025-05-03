@@ -197,7 +197,7 @@ def compute_F(r, theta, phi, alpha_m, isotropic=True):
     If isotropic=False, returns the full complex result.
     """
     # Define the m values based on whether the system is isotropic
-    m_values = [0] if isotropic else [-1, 0, 1]
+    m_values = [0] if isotropic else [0, 1, 2]
     F_val = []
     for m in m_values:
         # Calculate the spherical harmonic for the current m value
