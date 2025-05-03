@@ -172,9 +172,6 @@ def test_R1(twomol_universe):
     """Assert that the calculated value of R1 is correct."""
     u, group_H2O = twomol_universe
 
-    d_atoms = 8.0
-    expected_gij = np.float32(np.round(1/d_atoms**6, 7))
-
     nmrd_pbc = NMRD(
         u=u,
         atom_group=group_H2O,
@@ -191,14 +188,16 @@ def test_R1(twomol_universe):
     dt = (nmrd_pbc.t[1]-nmrd_pbc.t[0]) * cst.pico
 
     # expected J
-    J0_0 = np.mean(nmrd_pbc.gij) * dt * 2 * len(nmrd_pbc.t) # J in freq 0
+    d_atoms = 8.0
+    expected_gij = np.float32(np.round(1/d_atoms**6, 7))
+    J0_0 = expected_gij * dt * 2 * len(nmrd_pbc.t) # J in freq 0
 
     # expected R1
     R1_0 = prefactor * (J0_0 + 4 * J0_0) / 6
 
-    assert np.float32(np.round(nmrd_pbc.R1[0], 10)) == np.float32(np.round(R1_0, 10))
+    assert np.float32(np.round(nmrd_pbc.R1[0], 9)) == np.float32(np.round(R1_0, 9))
 
     # expected R2
     R2_0 = prefactor * (3/2 * J0_0 + (5/2) * J0_0 + J0_0) / 6
 
-    assert np.float32(np.round(nmrd_pbc.R2[0], 10)) == np.float32(np.round(R2_0, 10))
+    assert np.float32(np.round(nmrd_pbc.R2[0], 9)) == np.float32(np.round(R2_0, 9))
