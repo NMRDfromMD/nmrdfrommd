@@ -12,6 +12,20 @@ import numpy as np
 from scipy.special import sph_harm
 from scipy import constants as cst
 
+# This Fourier transform implementation is numerically correct
+# but scientifically fragile due to implicit unit handling and
+# normalization choices. The function mixes time units (picoseconds → seconds),
+# frequency scaling (Hz → MHz), and FFT normalization conventions in a way
+# that is not explicitly enforced in the API. This makes the output sensitive
+# to hidden assumptions and easy to misuse when integrating with external
+# data or tests using different unit conventions. In scientific workflows,
+# such ambiguity can silently introduce errors of several orders of magnitude
+# without triggering runtime failures. A safer design would enforce a single
+# consistent unit system at the API boundary (preferably SI units), and delegate
+# all unit conversions explicitly to the caller, ensuring that the Fourier
+# transform itself operates on dimensionless or strictly defined inputs
+# and produces well-defined spectral outputs.
+
 def fourier_transform(data, normalize=False):
     """
     Compute the Fourier transform of a time-domain signal.
@@ -39,6 +53,10 @@ def fourier_transform(data, normalize=False):
         Transformed data with shape (M, 2), where M = N//2 + 1:
         Column 0 is frequency (MHz), column 1 is complex signal (s * signal units).
     """
+
+    if not np.allclose(np.diff(data[:, 0]), dt_ps):
+        raise ValueError("Non-uniform time spacing detected.")
+
     if data.shape[1] != 2:
         raise ValueError("Input data must be a 2D array with two columns: time (ps), signal.")
 
