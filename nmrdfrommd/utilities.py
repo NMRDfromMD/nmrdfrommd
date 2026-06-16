@@ -9,7 +9,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import numpy as np
-from scipy.special import sph_harm
+from scipy.special import sph_harm_y
 from scipy import constants as cst
 
 def find_nearest(data, value):
@@ -78,40 +78,100 @@ def calculate_tau(J, gij, dim, integral=False, t=None, oneDarray=False):
         return np.array(tau)
 
 def compute_rij(pos_i, pos_j, box, pbc=True):
-    """Compute distance vector between atoms, with optional PBC."""
+    """
+    Compute displacement vector r_ij = r_i - r_j with optional periodic boundary conditions.
+
+    Parameters
+    ----------
+    pos_i, pos_j : array-like
+        Particle positions (shape: (3,) or (..., 3)).
+    box : array-like
+        Box lengths in x, y, z directions.
+    pbc : bool
+        If True, apply minimum-image convention.
+
+    Returns
+    -------
+    np.ndarray
+        Displacement vector(s) with same shape as input positions.
+    """
+    dr = np.asarray(pos_i) - np.asarray(pos_j)
+
     if pbc:
-        rij = np.remainder(pos_i - pos_j + box[:3]/2., box[:3]) - box[:3]/2
-    else:
-        rij = pos_i - pos_j
-    return rij.T
+        box = np.asarray(box)[:3]
+        dr = dr - box * np.round(dr / box)
+
+    return dr
 
 def cartesian_to_spherical(rij):
-    """Convert Cartesian to spherical coordinates."""
-    x, y, z = rij
+    """
+    Convert Cartesian coordinates to spherical coordinates.
+
+    Parameters
+    ----------
+    rij : array-like
+        Cartesian coordinates (..., 3)
+
+    Returns
+    -------
+    tuple of np.ndarray
+        r, theta, phi
+    """
+    rij = np.asarray(rij)
+
+    x = rij[..., 0]
+    y = rij[..., 1]
+    z = rij[..., 2]
+
     r = np.sqrt(x**2 + y**2 + z**2)
     theta = np.arctan2(np.sqrt(x**2 + y**2), z)
     phi = np.arctan2(y, x)
+
     return r, theta, phi
 
-def compute_F(r, theta, phi, alpha_m, isotropic=True):
-    """Evaluate the spherical harmonics-based F function.
-    
-    If isotropic=True, takes only the real part of the spherical harmonic product.
-    If isotropic=False, returns the full complex result.
+def spherical_harmonic_kernel(r, theta, phi, alpha_m, isotropic=True, l=2):
     """
-    # Define the m values based on whether the system is isotropic
-    m_values = [0] if isotropic else [0, 1, 2]
-    F_val = []
-    for m in m_values:
-        # Calculate the spherical harmonic for the current m value
-        sph_harm_value = sph_harm(m, 2, phi, theta)
-        # Apply the coefficient alpha_m, adjust for isotropy, and scale by r^3
-        if isotropic:
-            F_val.append((alpha_m[m] * sph_harm_value).real / r**3)
-        else:
-            F_val.append(alpha_m[m] * sph_harm_value / r**3)
-    return F_val
+    Compute spherical-harmonics-based F function.
 
+    Parameters
+    ----------
+    r, theta, phi : float or array-like
+        Spherical coordinates.
+    alpha_m : dict or array-like
+        Coefficients indexed by m.
+    isotropic : bool
+        If True, take only real part of m=0 term.
+    l : int
+        Angular momentum quantum number.
+
+    Returns
+    -------
+    np.ndarray
+        F values.
+    """
+    r = np.asarray(r)
+
+    if np.any(r == 0):
+        raise ValueError("r must be non-zero to avoid division by zero.")
+
+    if isotropic:
+        m_values = [0]
+    else:
+        m_values = range(-l, l + 1)
+
+    F_vals = []
+
+    for m in m_values:
+        Ylm = sph_harm_y(m, l, phi, theta)
+
+        val = alpha_m[m] * Ylm / (r ** 3)
+
+        if isotropic:
+            val = val.real
+
+        F_vals.append(val)
+
+    return np.array(F_vals)
 
 # Gyromagnetic ratios in rad/s/T
 GYROMAGNETIC_RATIOS = {

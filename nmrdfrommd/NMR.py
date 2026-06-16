@@ -26,9 +26,9 @@ logging.getLogger("MDAnalysis").setLevel(logging.WARNING) # Suppress MDAnalysis 
 from .correlation import autocorrelation_function
 from .fourier import fourier_transform
 from .utilities import find_nearest, \
-     compute_rij, cartesian_to_spherical, compute_F, get_gyromagnetic_ratio, log_bin
+     compute_rij, cartesian_to_spherical, spherical_harmonic_kernel, get_gyromagnetic_ratio, log_bin
 # from utilities import autocorrelation_function, find_nearest, fourier_transform, \
-#      compute_rij, cartesian_to_spherical, compute_F, get_gyromagnetic_ratio, log_bin
+#      compute_rij, cartesian_to_spherical, spherical_harmonic_kernel, get_gyromagnetic_ratio, log_bin
 
 class NMRD:
     """Calculate NMR relaxation time from MDAnalysis universe.
@@ -261,7 +261,7 @@ class NMRD:
         
             rij = compute_rij(self.position_i, self.position_j, self.box, self.pbc)
             r, theta, phi = cartesian_to_spherical(rij)
-            F_val = compute_F(r, theta, phi, self.alpha_m, self.isotropic)
+            F_val = spherical_harmonic_kernel(r, theta, phi, self.alpha_m, self.isotropic)
             # F_val = np.array(F_val)  # shape: (dim, n_j_atoms)
             self.data[:, cpt] = F_val
 
