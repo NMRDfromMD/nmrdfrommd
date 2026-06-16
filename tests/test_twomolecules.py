@@ -8,13 +8,13 @@
 # Released under the GNU Public Licence, v3 or any higher version
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from scipy import constants as cst
 import MDAnalysis as mda
 import numpy as np
 import pytest
-from scipy import constants as cst
 
 from nmrdfrommd import NMRD
-from nmrdfrommd.utilities import compute_rij, cartesian_to_spherical
+from nmrdfrommd.geometry import compute_rij, cartesian_to_spherical
 
 @pytest.fixture
 def twomol_universe():

@@ -25,8 +25,8 @@ logging.getLogger("MDAnalysis").setLevel(logging.WARNING) # Suppress MDAnalysis 
 
 from .correlation import autocorrelation_function
 from .fourier import fourier_transform
-from .utilities import find_nearest, \
-     compute_rij, cartesian_to_spherical, spherical_harmonic_kernel, get_gyromagnetic_ratio, log_bin
+from .geometry import  compute_rij, cartesian_to_spherical
+from .utilities import find_nearest, spherical_harmonic_kernel, get_gyromagnetic_ratio, log_bin
 # from utilities import autocorrelation_function, find_nearest, fourier_transform, \
 #      compute_rij, cartesian_to_spherical, spherical_harmonic_kernel, get_gyromagnetic_ratio, log_bin
 
