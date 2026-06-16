@@ -123,22 +123,6 @@ def spherical_harmonic_kernel(r, theta, phi, alpha_m, isotropic=True, l=2):
 
     return np.array(F_vals)
 
-# Gyromagnetic ratios in rad/s/T
-GYROMAGNETIC_RATIOS = {
-    "H": 2 * np.pi * 42.576e6,
-    "C": 2 * np.pi * 10.705e6,
-    "N": 2 * np.pi * -4.316e6,
-    "F": 2 * np.pi * 40.053e6,
-    "P": 2 * np.pi * 17.235e6,
-}
-
-def get_gyromagnetic_ratio(atom: str) -> float:
-    """Return the gyromagnetic ratio (rad/s/T) of a given atom symbol."""
-    try:
-        return GYROMAGNETIC_RATIOS[atom.upper()]
-    except KeyError:
-        raise ValueError(f"Unknown atom type '{atom}'. Add it to GYROMAGNETIC_RATIOS.")
-
 def log_bin(x, y, num_bins):
     """
     Bin y-values based on logarithmically spaced intervals in x.
