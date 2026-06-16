@@ -1,6 +1,7 @@
 import numpy as np
+from scipy import constants as cst
 
-from nmrdfrommd.correlation import autocorrelation_function
+from nmrdfrommd.correlation import autocorrelation_function, calculate_tau
 
 
 def reference_autocorrelation(data):
@@ -32,7 +33,6 @@ def test_autocorrelation_matches_reference():
         rtol=1e-12,
         atol=1e-12,
     )
-
 
 def test_wiener_khinchin_matches_legacy():
     """Wiener-Khinchin and legacy implementations give identical results."""
@@ -109,3 +109,26 @@ def test_autocorrelation_of_sine_wave():
 
     assert ac[0] > 0
     assert ac[100] < ac[0]
+
+def test_calculate_tau_oneD_analytic():
+    """One-dimensional analytic τ = 0.5 * J(0) / g(0)."""
+    J = np.array([2.0])
+    gij = np.array([1.0])
+
+    tau = calculate_tau(J, gij, dim=1, oneDarray=True)
+
+    expected = 0.5 * 2.0 / 1.0 / cst.pico
+
+    np.testing.assert_allclose(tau[0], expected)
+
+def test_calculate_tau_oneD_integral():
+    """Integral definition matches expected area for constant function."""
+    t = np.linspace(0, 10, 100)
+    gij = np.ones_like(t)
+    J = np.array([1.0])
+
+    tau = calculate_tau(J, gij, dim=1, integral=True, t=t, oneDarray=True)
+
+    expected = np.trapezoid(gij, t) / gij[0] / cst.pico
+
+    np.testing.assert_allclose(tau[0], expected)

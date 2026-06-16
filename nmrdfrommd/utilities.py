@@ -10,7 +10,7 @@
 
 import numpy as np
 from scipy.special import sph_harm_y
-from scipy import constants as cst
+
 
 def find_nearest(data, value):
     """
@@ -32,50 +32,6 @@ def find_nearest(data, value):
     if data.ndim != 1:
         raise ValueError("Input `data` must be a 1D array.")
     return np.abs(data - value).argmin()
-
-def calculate_tau(J, gij, dim, integral=False, t=None, oneDarray=False):
-    """
-    Compute the correlation time τ = 0.5 * J(0) / G(0) or from integral.
-
-    Parameters
-    ----------
-    J : np.ndarray
-        Spectral density array (shape: [dim, N] or [N]).
-    gij : np.ndarray
-        Time correlation function values (shape: [dim, N] or [N]).
-    dim : int
-        Dimensionality of the system (e.g., 3 for m = -1, 0, +1).
-    integral : bool, optional
-        If True, use integral of gij to compute τ.
-    t : np.ndarray, optional
-        Time vector (required if integral=True).
-    oneDarray : bool, optional
-        If True, assume 1D inputs for isotropic case.
-
-    Returns
-    -------
-    np.ndarray
-        Correlation times τ in picoseconds.
-    """
-    if oneDarray:
-        if integral:
-            if t is None:
-                raise ValueError("Time vector `t` must be provided when integral=True.")
-            tau = np.trapz(gij, t) / gij[0]
-        else:
-            tau = 0.5 * J[0] / gij[0]
-        return np.array([tau / cst.pico])  # ensure array output
-    else:
-        tau = []
-        for m in range(dim):
-            if integral:
-                if t is None:
-                    raise ValueError("Time vector `t` must be provided when integral=True.")
-                tau_m = np.trapz(gij[m], t) / gij[m, 0]
-            else:
-                tau_m = 0.5 * J[m][0] / gij[0][m]
-            tau.append(tau_m / cst.pico)
-        return np.array(tau)
 
 def spherical_harmonic_kernel(r, theta, phi, alpha_m, isotropic=True, l=2):
     """
