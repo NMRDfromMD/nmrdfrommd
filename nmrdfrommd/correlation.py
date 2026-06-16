@@ -100,22 +100,25 @@ def calculate_tau(J, gij, dim, integral=False, t=None, oneDarray=False):
     np.ndarray
         Correlation times τ in picoseconds.
     """
+
     if oneDarray:
         if integral:
             if t is None:
                 raise ValueError("Time vector `t` must be provided when integral=True.")
-            tau = np.trapz(gij, t) / gij[0]
+            tau = np.trapezoid(gij, t) / gij[0]
         else:
             tau = 0.5 * J[0] / gij[0]
-        return np.array([tau / cst.pico])  # ensure array output
+        return np.array([tau / cst.pico])
+
     else:
         tau = []
         for m in range(dim):
             if integral:
                 if t is None:
                     raise ValueError("Time vector `t` must be provided when integral=True.")
-                tau_m = np.trapz(gij[m], t) / gij[m, 0]
+                tau_m = np.trapezoid(gij[m], t) / gij[m, 0]
             else:
                 tau_m = 0.5 * J[m][0] / gij[0][m]
             tau.append(tau_m / cst.pico)
+
         return np.array(tau)
