@@ -1,6 +1,6 @@
 import numpy as np
 
-from nmrdfrommd.utilities import autocorrelation_function
+from nmrdfrommd.correlation import autocorrelation_function
 
 
 def reference_autocorrelation(data):
