@@ -12,26 +12,27 @@ import numpy as np
 from scipy.special import sph_harm
 from scipy import constants as cst
 
-def autocorrelation_function(data: np.ndarray,
-                             use_wiener_khinchin: bool = False,
-                             use_gpu: bool = False) -> np.ndarray:
+def autocorrelation_function(
+        data: np.ndarray,
+        use_wiener_khinchin: bool = False,
+        use_gpu: bool = False) -> np.ndarray:
     """
-    Calculate the autocorrelation of a 1D array using FFT.
+    Calculate the autocorrelation of a 1D signal using FFT.
 
     Parameters
     ----------
     data : np.ndarray
-        Input signal (units: Å-3).
+        Input signal (units: Å⁻³).
     use_wiener_khinchin : bool, optional
-        If True, use Wiener-Khinchin theorem for more memory-efficient FFT.
-        If False (default), use legacy double-zero-padded method.
+        If True, use the Wiener-Khinchin theorem with minimal zero-padding.
+        If False, use the legacy double-zero-padded implementation.
     use_gpu : bool, optional
-        If True, compute autocorrelation using CuPy on GPU (requires cupy).
+        If True, compute the autocorrelation with CuPy on a GPU.
 
     Returns
     -------
     np.ndarray
-        Autocorrelation function (units: Å-6).
+        Autocorrelation function (units: Å⁻⁶).
     """
     data = np.asarray(data)
     n = len(data)
@@ -42,28 +43,37 @@ def autocorrelation_function(data: np.ndarray,
         except ImportError:
             raise ImportError("CuPy is not installed.")
 
-        data_cp = cp.asarray(data)
         n_fft = 2 ** int(cp.ceil(cp.log2(2 * n - 1)))
-        fdata = cp.fft.fft(data_cp, n=n_fft)
-        power = fdata * cp.conj(fdata)
-        ac = cp.fft.ifft(power).real[:n]
-        normalization = cp.arange(n, 0, -1)
-        return cp.asnumpy(ac / normalization)
 
-    elif use_wiener_khinchin:
+        signal = cp.asarray(data)
+        fft_signal = cp.fft.fft(signal, n=n_fft)
+        power_spectrum = fft_signal * cp.conj(fft_signal)
+
+        autocorr = cp.fft.ifft(power_spectrum).real[:n]
+        normalization = cp.arange(n, 0, -1)
+
+        return cp.asnumpy(autocorr / normalization)
+
+    if use_wiener_khinchin:
+        # Minimal zero-padding required for linear autocorrelation.
         n_fft = 2 ** int(np.ceil(np.log2(2 * n - 1)))
-        fdata = np.fft.fft(data, n=n_fft)
-        power_spectrum = fdata * np.conj(fdata)
-        autocorr = np.fft.ifft(power_spectrum).real[:n]
+
+        fft_signal = np.fft.fft(data, n=n_fft)
+        power_spectrum = fft_signal * np.conj(fft_signal)
 
     else:
+        # Legacy implementation using double zero-padding.
         n_fft = 2 ** int(np.ceil(np.log2(n)))
-        data_padded = np.pad(data, (0, n_fft - n))
-        data_padded = np.pad(data_padded, (0, data_padded.shape[0]))
-        fdata = np.fft.fft(data_padded)
-        power_spectrum = fdata * np.conj(fdata)
-        autocorr = np.fft.ifft(power_spectrum).real[:n]
+
+        padded_data = np.pad(data, (0, n_fft - n))
+        padded_data = np.pad(padded_data, (0, padded_data.shape[0]))
+
+        fft_signal = np.fft.fft(padded_data)
+        power_spectrum = fft_signal * np.conj(fft_signal)
+
+    autocorr = np.fft.ifft(power_spectrum).real[:n]
     normalization = np.arange(n, 0, -1)
+
     return autocorr / normalization
 
 def fourier_transform(data, normalize=False):
