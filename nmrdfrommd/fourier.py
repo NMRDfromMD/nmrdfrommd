@@ -2,7 +2,7 @@
 """Fourier transform functions for NMRDfromMD package."""
 # -*- Mode: python; tab-width: 4; indent-tabs-mode:nil; coding:utf-8 -*-
 #
-# Copyright (c) 2023-2025 Authors and contributors
+# Copyright (c) 2023-2026 Authors and contributors
 # Simon Gravelle
 #
 # Released under the GNU Public Licence, v3 or any higher version
