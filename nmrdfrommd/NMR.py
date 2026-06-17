@@ -83,7 +83,7 @@ class NMRD:
         """Initialize class and store parameters."""
         self.u = u
         self.atom_group = atom_group
-        self.neighbor_group = neighbor_group or atom_group
+        self.neighbor_group = atom_group if neighbor_group is None else neighbor_group
         self.type_analysis = type_analysis
         self.number_i = number_i
         self.isotropic = isotropic
@@ -126,19 +126,26 @@ class NMRD:
 
     def initialize(self):
         """Prepare the calculation"""
-        self.verify_entry()
+        self._verify_entry()
         self._initialize_physical_constants()
         self._select_atom_group()
 
-    def verify_entry(self):
-        """Verify that entries are correct, and that groups are not empty."""
-        possible_analysis = ["inter_molecular", "intra_molecular", "full"]
-        if self.type_analysis not in possible_analysis:
-            raise ValueError("type_analysis can only be inter_molecular, intra_molecular, and full.")      
+    def _verify_entry(self):
+        """Verify that inputs are valid for NMR analysis."""
+
+        allowed_analysis = {"inter_molecular", "intra_molecular", "full"}
+
+        if self.type_analysis not in allowed_analysis:
+            raise ValueError(
+                f"Invalid type_analysis='{self.type_analysis}'. "
+                f"Must be one of {sorted(allowed_analysis)}."
+            )
+
         if self.atom_group.n_atoms == 0:
-            raise ValueError("Empty atom group")
+            raise ValueError("atom_group is empty (n_atoms=0).")
+
         if self.neighbor_group.n_atoms == 0:
-            raise ValueError("Empty neighbor atom group")
+            raise ValueError("neighbor_group is empty (n_atoms=0).")
 
     def _initialize_physical_constants(self):
         """
