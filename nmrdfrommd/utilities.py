@@ -9,7 +9,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import numpy as np
-from scipy.special import sph_harm_y
 
 
 def find_nearest(data, value):
@@ -32,52 +31,6 @@ def find_nearest(data, value):
     if data.ndim != 1:
         raise ValueError("Input `data` must be a 1D array.")
     return np.abs(data - value).argmin()
-
-def spherical_harmonic_kernel(r, theta, phi, alpha_m, isotropic=True, l=2):
-    """
-    Compute spherical-harmonics-based F function.
-
-    Parameters
-    ----------
-    r, theta, phi : float or array-like
-        Spherical coordinates.
-    alpha_m : dict or array-like
-        Coefficients indexed by m.
-    isotropic : bool
-        If True, take only real part of m=0 term.
-    l : int
-        Angular momentum quantum number.
-
-    Returns
-    -------
-    np.ndarray
-        F values.
-    """
-    r = np.asarray(r)
-
-    if np.any(r == 0):
-        raise ValueError("r must be non-zero to avoid division by zero.")
-
-    if isotropic:
-        # rotationally averaged contribution
-        m_values = (0,)
-    else:
-        # full spherical harmonic manifold
-        m_values = range(-l, l + 1)
-
-    F_vals = []
-
-    for m in m_values:
-        Ylm = sph_harm_y(m, l, phi, theta)
-
-        val = alpha_m[m] * Ylm / (r ** 3)
-
-        if isotropic:
-            val = val.real
-
-        F_vals.append(val)
-
-    return np.array(F_vals)
 
 def log_bin(x, y, num_bins):
     """

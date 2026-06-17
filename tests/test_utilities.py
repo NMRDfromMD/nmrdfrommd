@@ -2,7 +2,7 @@ from scipy import constants as cst
 import numpy as np
 import pytest
 
-from nmrdfrommd.utilities import find_nearest, spherical_harmonic_kernel
+from nmrdfrommd.utilities import find_nearest
 
 
 def test_find_nearest_basic():
@@ -27,17 +27,3 @@ def test_find_nearest_invalid_shape():
 
     with pytest.raises(ValueError):
         find_nearest(data, 2)
-
-def test_spherical_harmonic_kernel_basic():
-    """Kernel returns finite, correctly shaped output for simple input."""
-    r = 2.0
-    theta = np.pi / 2
-    phi = 0.0
-
-    alpha_m = {0: 1.0}
-
-    out = spherical_harmonic_kernel(r, theta, phi, alpha_m, isotropic=True)
-
-    assert out.shape == (1,)
-    assert np.isfinite(out[0])
-
