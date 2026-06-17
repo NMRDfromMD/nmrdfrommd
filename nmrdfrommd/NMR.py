@@ -83,7 +83,7 @@ class NMRD:
         """Initialize class and store parameters."""
         self.u = u
         self.atom_group = atom_group
-        self.neighbor_group = atom_group if neighbor_group is None else neighbor_group
+        self.neighbor_group = atom_group if neighbor_group is None else neighbor_group # default: self-interaction case
         self.type_analysis = type_analysis
         self.number_i = number_i
         self.isotropic = isotropic
@@ -101,17 +101,21 @@ class NMRD:
         self.index_i = None
         self.group_i = None
         self.group_j = None
-        self.gij = None
-        self.t = None
-        self.J = None
-        self.R1 = None
-        self.R2 = None
-        self.T1 = None
-        self.T2 = None
-        self.f = None
         self.alpha_m = None
         self.K = None
         self.GAMMA = None
+
+        # For storing results
+        self.results = {
+            "gij": None,
+            "t": None,
+            "J": None,
+            "f": None,
+            "R1": None,
+            "R2": None,
+            "T1": None,
+            "T2": None,
+        }
 
     def run_analysis(self):
         """Run full NMR analysis pipeline.
@@ -251,13 +255,13 @@ class NMRD:
             self.data = np.zeros((self.dim, self.u.trajectory.n_frames,
                                     self.group_j.atoms.n_atoms),
                                     dtype=np.complex64)
-        self.gij = np.zeros((self.dim,  self.u.trajectory.n_frames),
+        self.results["gij"] = np.zeros((self.dim,  self.u.trajectory.n_frames),
                                 dtype=np.float32)
         if self.frame_interval is None:
             self.timestep = np.round(self.u.trajectory.dt, 4)
         else:
             self.timestep = self.frame_interval
-        self.t = np.arange(self.u.trajectory.n_frames) * self.timestep
+        self.results["t"] = np.arange(self.u.trajectory.n_frames) * self.timestep
 
     def loop_over_trajectory(self):
         """Loop of the MDA trajectory and extract rij. 
@@ -287,8 +291,8 @@ class NMRD:
         """Calculate the correlation function."""
         for idx_j in range(self.group_j.atoms.n_atoms):
             for m in range(self.dim):
-                self.gij[m] += autocorrelation_function(self.data[m, :, idx_j])
-        self.gij = np.real(self.gij)
+                self.results["gij"][m] += autocorrelation_function(self.data[m, :, idx_j])
+        self.results["gij"] = np.real(self.results["gij"])
 
     def finalize(self):
         # calculate spectrums
@@ -303,9 +307,9 @@ class NMRD:
         Optional, for coarse grained model, apply a coefficient "hydrogen_per_atom" != 1
         """
         # normalise gij by the number of iteration (or number of pair spin)
-        self.gij /= self.cpt_i+1
+        self.results["gij"] /= self.cpt_i+1
         if self.hydrogen_per_atom != 1:
-            self.gij *= np.float32(self.hydrogen_per_atom)
+            self.results["gij"] *= np.float32(self.hydrogen_per_atom)
 
     def calculate_fourier_transform(self):
         """Calculate spectral density J.
@@ -314,30 +318,30 @@ class NMRD:
         Fourier transform of the correlation function.
         """
         # for coarse grained models, possibly more than 1 hydrogen per atom
-        self.J = []
+        self.results["J"]  = []
         for m in range(self.dim):
-            fij = fourier_transform(np.vstack([self.t, self.gij[m]]).T)
-            self.J.append(np.real(fij.T[1]))
-        self.J = np.array(self.J)
-        self.f = np.real(fij.T[0])
+            fij = fourier_transform(np.vstack([self.results["t"], self.results["gij"][m]]).T)
+            self.results["J"] .append(np.real(fij.T[1]))
+        self.results["J"]  = np.array(self.results["J"] )
+        self.results["f"] = np.real(fij.T[0])
 
     def calculate_spectrum(self):
         """Calculate relaxation rates R1 and R2 from spectral density J."""
         prefactor = self.K / cst.angstrom ** 6
 
-        J0 = interp1d(self.f, self.J[0], fill_value="extrapolate")(self.f)
+        J0 = interp1d(self.results["f"], self.results["J"] [0], fill_value="extrapolate")(self.results["f"])
         if self.isotropic:
-            J02 = interp1d(self.f, self.J[0], fill_value="extrapolate")(2 * self.f)
-            self.R1 = prefactor * (J0 + 4 * J02) / 6
-            self.R2 = prefactor * (3/2 * J0[0] + (5/2) * J0 + J02) / 6
+            J02 = interp1d(self.results["f"], self.results["J"] [0], fill_value="extrapolate")(2 * self.results["f"])
+            self.results["R1"]  = prefactor * (J0 + 4 * J02) / 6
+            self.results["R2"]  = prefactor * (3/2 * J0[0] + (5/2) * J0 + J02) / 6
         else:
-            J1 = interp1d(self.f, self.J[1], fill_value="extrapolate")(self.f)
-            J2 = interp1d(self.f, self.J[2], fill_value="extrapolate")(2 * self.f)
-            self.R1 = prefactor * (J1 + J2)
-            self.R2 = prefactor * (1/4) * (J0[0] + 10 * J1 + J2)
+            J1 = interp1d(self.results["f"], self.results["J"] [1], fill_value="extrapolate")(self.results["f"])
+            J2 = interp1d(self.results["f"], self.results["J"] [2], fill_value="extrapolate")(2 * self.results["f"])
+            self.results["R1"]  = prefactor * (J1 + J2)
+            self.results["R2"]  = prefactor * (1/4) * (J0[0] + 10 * J1 + J2)
 
-        _, R1_log = log_bin(self.f, self.R1, num_bins=self.num_log_points)
-        f_log, R2_log = log_bin(self.f, self.R2, num_bins=self.num_log_points)
+        _, R1_log = log_bin(self.results["f"], self.results["R1"] , num_bins=self.num_log_points)
+        f_log, R2_log = log_bin(self.results["f"], self.results["R2"] , num_bins=self.num_log_points)
         self.f_log = f_log
         self.R1_log = R1_log
         self.R2_log = R2_log
@@ -345,9 +349,9 @@ class NMRD:
     def calculate_relaxationtime(self):
         """Calculate the relaxation time at a given frequency target_frequency (default is 0)"""
         if self.target_frequency is None:
-            self.T1 = 1/self.R1[0]
-            self.T2 = 1/self.R2[0]
+            self.results["T1"]  = 1/self.results["R1"] [0]
+            self.results["T2"]  = 1/self.results["R2"] [0]
         else:
-            idx = find_nearest(self.f, self.target_frequency)
-            self.T1 = 1 / self.R1[idx]
-            self.T2 = 1 / self.R2[idx]
+            idx = find_nearest(self.results["f"], self.target_frequency)
+            self.results["T1"]  = 1 / self.results["R1"] [idx]
+            self.results["T2"]  = 1 / self.results["R2"] [idx]
