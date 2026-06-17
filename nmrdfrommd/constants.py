@@ -52,9 +52,6 @@ def dipolar_prefactor(gamma, spin):
     """
     return (
         (3 / 2)
-        * (cst.mu_0 / (4 * np.pi)) ** 2
-        * cst.hbar**2
-        * gamma**4
-        * spin
-        * (spin + 1)
+        * (cst.mu_0 / (4 * np.pi)) ** 2 * cst.hbar**2
+        * gamma**4 * spin * (spin + 1)
     )
