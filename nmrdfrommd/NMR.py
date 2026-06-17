@@ -206,51 +206,99 @@ class NMRD:
             )
 
     def collect_data(self):
-        """Collect correlation data over selected atoms and trajectory."""
+        """Collect data by looping over atoms, time, and evaluate correlation"""
+        # Loop on all the atom of group i
+        for cpt_i, _ in enumerate(self.index_i):
 
-        # In case the script is called twice
-        self.data = None
-        self.results["gij"] = None
-        
-        for i_idx in self.index_i:
+            self.cpt_i = cpt_i
+            self.select_atoms_group_i()
+            self.select_atoms_group_j()
 
-            self.select_atoms_group_i(i_idx)
-            self.select_atoms_group_j(i_idx)
-
-            if self.results.get("gij") is None:
+            if cpt_i == 0:
                 self.initialise_data()
-
+                
             self.loop_over_trajectory()
             self.calculate_correlation_ij()
 
-    def select_atoms_group_i(self, i_idx):
-        """Select atoms of group i for calculation."""
-        self.group_i = self.u.select_atoms(f'index {i_idx}')
-        self.resids_i = self.group_i.resids
+    # def collect_data(self):
+    #     """Collect correlation data over selected atoms and trajectory."""
 
-    def select_atoms_group_j(self, i_idx):
-        """Select atoms of group j depending on analysis type."""
+    #     # In case the script is called twice
+    #     self.data = None
+    #     self.results["gij"] = None
+        
+    #     for i_idx in self.index_i:
 
-        res_id_i = self.group_i.resids[0]
+    #         self.select_atoms_group_i(i_idx)
+    #         self.select_atoms_group_j(i_idx)
 
-        if self.type_analysis == "intra_molecular":
-            mask = (self.neighbor_group.resids == res_id_i) & (self.neighbor_group.indices != i_idx)
+    #         if self.results.get("gij") is None:
+    #             self.initialise_data()
 
-        elif self.type_analysis == "inter_molecular":
-            mask = (self.neighbor_group.resids != res_id_i)
+    #         self.loop_over_trajectory()
+    #         self.calculate_correlation_ij()
 
-        elif self.type_analysis == "full":
-            mask = (self.neighbor_group.indices != i_idx)
+    # def select_atoms_group_i(self, i_idx):
+    #     """Select atoms of group i for calculation."""
+    #     self.group_i = self.u.select_atoms(f'index {i_idx}')
+    #     self.resids_i = self.group_i.resids
 
-        else:
+    def select_atoms_group_i(self):
+        """Select atoms of the group i for the calculation."""
+        self.group_i = self.u.select_atoms('index ' + str(self.index_i[self.cpt_i]))
+        self.resids_i = self.group_i.resids[self.group_i.atoms.indices == self.index_i[self.cpt_i]]
+
+    def select_atoms_group_j(self):
+        """Select atoms of the group j for the calculation.
+
+        For intra molecular analysis, group j are made of atoms of the
+        same residue as group i.
+        For inter molecular analysis, group j are made of atoms of
+        different residues as group i.
+        For full analysis, group j are made of atoms that are not in group i.
+        """
+        res_id_i = self.resids_i[0]
+        idx_i = self.index_i[self.cpt_i]
+        
+        conditions = {
+            "intra_molecular": lambda: (self.neighbor_group.resids == res_id_i) & (self.neighbor_group.indices != idx_i),
+            "inter_molecular": lambda: (self.neighbor_group.resids != res_id_i),
+            "full": lambda: (self.neighbor_group.indices != idx_i),
+        }
+        
+        if self.type_analysis not in conditions:
             raise ValueError(f"Unknown type_analysis: {self.type_analysis}")
-
-        index_j = self.neighbor_group.indices[mask]
-
+        
+        index_j = self.neighbor_group.atoms.indices[conditions[self.type_analysis]()]
         if len(index_j) == 0:
-            raise ValueError("Empty atom group j (check selection logic)")
+            raise ValueError("Empty atom groups j. Wrong combination of type_analysis and group selection?")
+        
+        str_j = ' '.join(map(str, index_j))
+        self.group_j = self.u.select_atoms(f'index {str_j}')
 
-        self.group_j = self.neighbor_group[index_j]
+    # def select_atoms_group_j(self, i_idx):
+    #     """Select atoms of group j depending on analysis type."""
+
+    #     res_id_i = self.group_i.resids[0]
+
+    #     if self.type_analysis == "intra_molecular":
+    #         mask = (self.neighbor_group.resids == res_id_i) & (self.neighbor_group.indices != i_idx)
+
+    #     elif self.type_analysis == "inter_molecular":
+    #         mask = (self.neighbor_group.resids != res_id_i)
+
+    #     elif self.type_analysis == "full":
+    #         mask = (self.neighbor_group.indices != i_idx)
+
+    #     else:
+    #         raise ValueError(f"Unknown type_analysis: {self.type_analysis}")
+
+    #     index_j = self.neighbor_group.indices[mask]
+
+    #     if len(index_j) == 0:
+    #         raise ValueError("Empty atom group j (check selection logic)")
+
+    #     self.group_j = self.neighbor_group[index_j]
 
     def initialise_data(self):
         """Initialise arrays.
@@ -322,6 +370,7 @@ class NMRD:
         """
         # normalise gij by the number of iteration (or number of pair spin)
         self.results["gij"] /= len(self.index_i)
+        # self.results["gij"].gij /= self.results["gij"].cpt_i+1
         if self.hydrogen_per_atom != 1:
             self.results["gij"] *= np.float32(self.hydrogen_per_atom)
 
@@ -332,25 +381,25 @@ class NMRD:
         Fourier transform of the correlation function.
         """
         # for coarse grained models, possibly more than 1 hydrogen per atom
-        self.results["J"]  = []
+        self.results["J"] = []
         for m in range(self.dim):
             fij = fourier_transform(np.vstack([self.results["t"], self.results["gij"][m]]).T)
-            self.results["J"] .append(np.real(fij.T[1]))
-        self.results["J"]  = np.array(self.results["J"] )
+            self.results["J"].append(np.real(fij.T[1]))
+        self.results["J"] = np.array(self.results["J"])
         self.results["f"] = np.real(fij.T[0])
 
     def calculate_spectrum(self):
         """Calculate relaxation rates R1 and R2 from spectral density J."""
         prefactor = self.K / cst.angstrom ** 6
 
-        J0 = interp1d(self.results["f"], self.results["J"] [0], fill_value="extrapolate")(self.results["f"])
+        J0 = interp1d(self.results["f"], self.results["J"][0], fill_value="extrapolate")(self.results["f"])
         if self.isotropic:
-            J02 = interp1d(self.results["f"], self.results["J"] [0], fill_value="extrapolate")(2 * self.results["f"])
+            J02 = interp1d(self.results["f"], self.results["J"][0], fill_value="extrapolate")(2 * self.results["f"])
             self.results["R1"]  = prefactor * (J0 + 4 * J02) / 6
             self.results["R2"]  = prefactor * (3/2 * J0[0] + (5/2) * J0 + J02) / 6
         else:
-            J1 = interp1d(self.results["f"], self.results["J"] [1], fill_value="extrapolate")(self.results["f"])
-            J2 = interp1d(self.results["f"], self.results["J"] [2], fill_value="extrapolate")(2 * self.results["f"])
+            J1 = interp1d(self.results["f"], self.results["J"][1], fill_value="extrapolate")(self.results["f"])
+            J2 = interp1d(self.results["f"], self.results["J"][2], fill_value="extrapolate")(2 * self.results["f"])
             self.results["R1"]  = prefactor * (J1 + J2)
             self.results["R2"]  = prefactor * (1/4) * (J0[0] + 10 * J1 + J2)
 
@@ -361,11 +410,37 @@ class NMRD:
         self.R2_log = R2_log
 
     def calculate_relaxationtime(self):
-        """Calculate the relaxation time at a given frequency target_frequency (default is 0)"""
+        """Calculate T1 and T2 relaxation times from spectral density.
+
+        If target_frequency is None, values are taken at the frequency
+        closest to zero. Otherwise, values are evaluated at the nearest
+        frequency to target_frequency.
+
+        Protects against divide-by-zero numerical issues.
+        """
+
+        f = self.results["f"]
+        R1 = self.results["R1"]
+        R2 = self.results["R2"]
+
+        # choose frequency index
         if self.target_frequency is None:
-            self.results["T1"]  = 1/self.results["R1"] [0]
-            self.results["T2"]  = 1/self.results["R2"] [0]
+            idx = find_nearest(f, 0.0)
         else:
-            idx = find_nearest(self.results["f"], self.target_frequency)
-            self.results["T1"]  = 1 / self.results["R1"] [idx]
-            self.results["T2"]  = 1 / self.results["R2"] [idx]
+            idx = find_nearest(f, self.target_frequency)
+
+        R1_val = R1[idx]
+        R2_val = R2[idx]
+
+        # numerical safety (avoid divide-by-zero warnings)
+        eps = 1e-20
+
+        if np.isclose(R1_val, 0.0):
+            self.results["T1"] = np.inf
+        else:
+            self.results["T1"] = 1.0 / (R1_val + eps)
+
+        if np.isclose(R2_val, 0.0):
+            self.results["T2"] = np.inf
+        else:
+            self.results["T2"] = 1.0 / (R2_val + eps)
