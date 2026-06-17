@@ -28,6 +28,7 @@ from .fourier import compute_spectral_density
 from .geometry import compute_rij, cartesian_to_spherical, spherical_harmonic_kernel
 from .constants import get_gyromagnetic_ratio, ALPHA_M, dipolar_prefactor
 from .utilities import find_nearest, log_bin
+from .relaxation import compute_relaxation_rates
 from .errors import NON_ORTHOGONAL_BOX, INVALID_TYPE_ANALYSIS
 
 
@@ -303,24 +304,14 @@ class NMRD:
 
     def calculate_spectrum(self):
         """Calculate relaxation rates R1 and R2 from spectral density J."""
-        prefactor = self.K / cst.angstrom ** 6
+        self.results["R1"], self.results["R2"] = compute_relaxation_rates(
+            self.results["f"], self.results["J"], self.K, self.isotropic)
 
-        J0 = interp1d(self.results["f"], self.results["J"][0], fill_value="extrapolate")(self.results["f"])
-        if self.isotropic:
-            J02 = interp1d(self.results["f"], self.results["J"][0], fill_value="extrapolate")(2 * self.results["f"])
-            self.results["R1"]  = prefactor * (J0 + 4 * J02) / 6
-            self.results["R2"]  = prefactor * (3/2 * J0[0] + (5/2) * J0 + J02) / 6
-        else:
-            J1 = interp1d(self.results["f"], self.results["J"][1], fill_value="extrapolate")(self.results["f"])
-            J2 = interp1d(self.results["f"], self.results["J"][2], fill_value="extrapolate")(2 * self.results["f"])
-            self.results["R1"]  = prefactor * (J1 + J2)
-            self.results["R2"]  = prefactor * (1/4) * (J0[0] + 10 * J1 + J2)
-
-        _, R1_log = log_bin(self.results["f"], self.results["R1"] , num_bins=self.num_log_points)
-        f_log, R2_log = log_bin(self.results["f"], self.results["R2"] , num_bins=self.num_log_points)
-        self.f_log = f_log
-        self.R1_log = R1_log
-        self.R2_log = R2_log
+        # _, R1_log = log_bin(self.results["f"], self.results["R1"] , num_bins=self.num_log_points)
+        # f_log, R2_log = log_bin(self.results["f"], self.results["R2"] , num_bins=self.num_log_points)
+        # self.f_log = f_log
+        # self.R1_log = R1_log
+        # self.R2_log = R2_log
 
     def calculate_relaxationtime(self):
         """Calculate T1 and T2 relaxation times from spectral density.
