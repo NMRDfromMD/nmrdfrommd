@@ -27,3 +27,10 @@ def twomol_universe():
     u = mda.Universe(data, trj)
     group_H2O = u.select_atoms("type 2") # pick one H per molecule
     return u, group_H2O
+
+@pytest.fixture
+def two_molecule_system():
+    """3 atoms in residue 1 (atoms 0-2), 3 atoms in residue 2 (atoms 3-5)."""
+    resids = np.array([1, 1, 1, 2, 2, 2])
+    indices = np.array([0, 1, 2, 3, 4, 5])
+    return resids, indices

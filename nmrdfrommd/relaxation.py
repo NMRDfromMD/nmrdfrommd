@@ -51,3 +51,38 @@ def compute_relaxation_rates(f, J, K, isotropic):
         R2 = prefactor * (1 / 4) * (J0[idx0] + 10 * J1 + J2)
 
     return R1, R2
+
+def compute_relaxation_times(f, R1, R2, target_frequency=None):
+    """Compute T1 and T2 relaxation times from relaxation rates R1, R2.
+
+    Values are evaluated at the frequency closest to target_frequency
+    (or to zero, if target_frequency is None). Protects against
+    divide-by-zero when a rate is numerically zero.
+
+    Parameters
+    ----------
+    f : np.ndarray
+        Frequency array.
+    R1 : np.ndarray
+        Longitudinal relaxation rate, same shape as f.
+    R2 : np.ndarray
+        Transverse relaxation rate, same shape as f.
+    target_frequency : float, optional
+        Frequency at which to evaluate T1/T2. If None, f=0 is used.
+
+    Returns
+    -------
+    T1, T2 : float
+        Relaxation times. np.inf if the corresponding rate is ~0.
+    """
+    target = 0.0 if target_frequency is None else target_frequency
+    idx = find_nearest(f, target)
+
+    R1_val = R1[idx]
+    R2_val = R2[idx]
+
+    eps = 1e-20
+    T1 = np.inf if np.isclose(R1_val, 0.0) else 1.0 / (R1_val + eps)
+    T2 = np.inf if np.isclose(R2_val, 0.0) else 1.0 / (R2_val + eps)
+
+    return T1, T2

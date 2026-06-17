@@ -27,8 +27,9 @@ from .correlation import autocorrelation_function, normalize_correlation
 from .fourier import compute_spectral_density
 from .geometry import compute_rij, cartesian_to_spherical, spherical_harmonic_kernel
 from .constants import get_gyromagnetic_ratio, ALPHA_M, dipolar_prefactor
-from .utilities import find_nearest, log_bin_arrays
-from .relaxation import compute_relaxation_rates
+from .utilities import log_bin_arrays
+from .selection import select_neighbor_indices
+from .relaxation import compute_relaxation_rates, compute_relaxation_times
 from .errors import NON_ORTHOGONAL_BOX, INVALID_TYPE_ANALYSIS
 
 
@@ -209,24 +210,19 @@ class NMRD:
 
     def select_atoms_group_i(self, i_idx):
         """Select atoms of group i for calculation."""
-        self.group_i = self.u.select_atoms(f'index {i_idx}')
+        self.group_i = self.u.atoms[[i_idx]]
         self.resids_i = self.group_i.resids
 
     def select_atoms_group_j(self, i_idx):
+        """Select atoms of group j for calculation."""
         res_id_i = self.resids_i[0]
-
-        conditions = {
-            "intra_molecular": (self.neighbor_group.resids == res_id_i) & (self.neighbor_group.indices != i_idx),
-            "inter_molecular": (self.neighbor_group.resids != res_id_i),
-            "full": (self.neighbor_group.indices != i_idx),
-        }
-
-        mask = conditions[self.type_analysis]
-        index_j = self.neighbor_group.atoms.indices[mask]
-
-        if len(index_j) == 0:
-            raise ValueError("Empty atom groups j...")
-
+        index_j = select_neighbor_indices(
+            self.neighbor_group.resids,
+            self.neighbor_group.atoms.indices,
+            res_id_i,
+            i_idx,
+            self.type_analysis,
+        )
         self.group_j = self.u.select_atoms(f'index {" ".join(map(str, index_j))}')
 
     def initialise_data(self):
@@ -318,32 +314,6 @@ class NMRD:
         If target_frequency is None, values are taken at the frequency
         closest to zero. Otherwise, values are evaluated at the nearest
         frequency to target_frequency.
-
-        Protects against divide-by-zero numerical issues.
         """
-
-        f = self.results["f"]
-        R1 = self.results["R1"]
-        R2 = self.results["R2"]
-
-        # choose frequency index
-        if self.target_frequency is None:
-            idx = find_nearest(f, 0.0)
-        else:
-            idx = find_nearest(f, self.target_frequency)
-
-        R1_val = R1[idx]
-        R2_val = R2[idx]
-
-        # numerical safety (avoid divide-by-zero warnings)
-        eps = 1e-20
-
-        if np.isclose(R1_val, 0.0):
-            self.results["T1"] = np.inf
-        else:
-            self.results["T1"] = 1.0 / (R1_val + eps)
-
-        if np.isclose(R2_val, 0.0):
-            self.results["T2"] = np.inf
-        else:
-            self.results["T2"] = 1.0 / (R2_val + eps)
+        self.results["T1"], self.results["T2"] = compute_relaxation_times(
+            self.results["f"], self.results["R1"], self.results["R2"], self.target_frequency)

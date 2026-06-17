@@ -11,3 +11,7 @@ INVALID_TYPE_ANALYSIS = (
     "Invalid type_analysis='{value}'. "
     "Must be one of: inter_molecular, intra_molecular, full."
 )
+
+EMPTY_J_GROUP = (
+    "Empty atom groups j..."
+)
