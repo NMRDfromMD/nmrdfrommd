@@ -9,6 +9,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import numpy as np
+from scipy import constants as cst
+
+
+ALPHA_M = (
+    np.sqrt(16 * np.pi / 5),
+    np.sqrt(8 * np.pi / 15),
+    np.sqrt(32 * np.pi / 15),
+)
 
 # Gyromagnetic ratios in rad/s/T
 GYROMAGNETIC_RATIOS = {
@@ -25,3 +33,28 @@ def get_gyromagnetic_ratio(atom: str) -> float:
         return GYROMAGNETIC_RATIOS[atom.upper()]
     except KeyError:
         raise ValueError(f"Unknown atom type '{atom}'. Add it to GYROMAGNETIC_RATIOS.")
+    
+def dipolar_prefactor(gamma, spin):
+    """
+    Return dipolar relaxation prefactor K.
+
+    Parameters
+    ----------
+    gamma : float
+        Gyromagnetic ratio (rad s⁻¹ T⁻¹).
+    spin : float
+        Nuclear spin quantum number.
+
+    Returns
+    -------
+    float
+        Dipolar prefactor K (m⁶ s⁻²).
+    """
+    return (
+        (3 / 2)
+        * (cst.mu_0 / (4 * np.pi)) ** 2
+        * cst.hbar**2
+        * gamma**4
+        * spin
+        * (spin + 1)
+    )

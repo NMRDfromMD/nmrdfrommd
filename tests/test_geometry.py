@@ -56,7 +56,6 @@ def test_cartesian_to_spherical_batch():
 
     assert r.shape == (2,)
 
-
 def test_cartesian_to_spherical_zero():
     """Handle zero vector without crashing and return zero radius."""
     rij = np.array([0.0, 0.0, 0.0])

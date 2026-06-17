@@ -26,7 +26,7 @@ logging.getLogger("MDAnalysis").setLevel(logging.WARNING) # Suppress MDAnalysis 
 from .correlation import autocorrelation_function
 from .fourier import fourier_transform
 from .geometry import compute_rij, cartesian_to_spherical, spherical_harmonic_kernel
-from .constants import get_gyromagnetic_ratio
+from .constants import get_gyromagnetic_ratio, ALPHA_M, dipolar_prefactor
 from .utilities import find_nearest, log_bin
 
 
@@ -77,7 +77,8 @@ class NMRD:
                 hydrogen_per_atom: float = 1.0,
                 spin: float = 1/2,
                 pbc: bool = True,
-                num_log_points: int = 100):
+                num_log_points: int = 100,
+                seed: int = None):
         
         """Initialize class and store parameters."""
         self.u = u
@@ -93,6 +94,8 @@ class NMRD:
         self.spin = spin
         self.pbc = pbc
         self.num_log_points = num_log_points
+        self.seed = seed
+        self._rng = np.random.default_rng(seed)
 
         # placeholder attributes (set during analysis)
         self.index_i = None
@@ -124,8 +127,8 @@ class NMRD:
     def initialize(self):
         """Prepare the calculation"""
         self.verify_entry()
-        self.define_constants()
-        self.select_atom_group()
+        self._initialize_physical_constants()
+        self._select_atom_group()
 
     def verify_entry(self):
         """Verify that entries are correct, and that groups are not empty."""
@@ -137,40 +140,48 @@ class NMRD:
         if self.neighbor_group.n_atoms == 0:
             raise ValueError("Empty neighbor atom group")
 
-    def define_constants(self):
-        """Define prefactors.
+    def _initialize_physical_constants(self):
+        """
+        Initialize physical constants and dipolar interaction prefactors.
 
-        See this page for details : https://nmrdfrommd.github.io
-        Gamma is the gyromagnetic constant of 1H in Hz/T or C/kg
-        K has the units of m^6/s^2
-        alpha_m are normalizing coefficient for harmonic function
+        Sets the gyromagnetic ratio of the spin bearers, computes the dipolar relaxation
+        prefactor K, and loads the spherical-harmonic normalization
+        coefficients used in the correlation function calculation.
+
+        Notes
+        -----
+        The current implementation assumes proton (¹H) spins for the
+        relaxation calculation.
         """
         self.GAMMA = get_gyromagnetic_ratio("H") # H is enforced, improve in the future
 
-        self.K = ((3 / 2) * (cst.mu_0 / (4 * np.pi)) ** 2 *
-                cst.hbar ** 2 * self.GAMMA ** 4 * self.spin * (1 + self.spin))
-        
-        self.alpha_m = [
-            np.sqrt(16 * np.pi / 5),
-            np.sqrt(8 * np.pi / 15),
-            np.sqrt(32 * np.pi / 15)
-        ]
+        self.K = dipolar_prefactor(self.GAMMA, self.spin)
 
-    def select_atom_group(self):
-        """Select the target atoms i.
-        
-        If number_i=0, select all atoms in atom_group
-        If number_i > atom_group.atoms.n_atoms, raise message
-        Else, if 0<number_i<atom_group.atoms.n_atoms, select atoms randomly
+        self.alpha_m = ALPHA_M
+
+    def _select_atom_group(self):
         """
-        if self.number_i == 0:
-            self.index_i = np.array(self.atom_group.atoms.indices)
-        elif self.number_i > self.atom_group.atoms.n_atoms:
-            logger.warning("`number_i` is larger than the number of atoms in group `atom_group`. "
-               "It will be ignored — all atoms in the group will be selected.")
-            self.index_i = np.array(self.atom_group.atoms.indices)
+        Select target atoms for the NMR calculation.
+
+        If ``number_i`` is 0 or larger than the size of ``atom_group``,
+        all atoms are selected. Otherwise, ``number_i`` atoms are chosen
+        randomly without replacement.
+        """
+        indices = self.atom_group.atoms.indices
+
+        if self.number_i == 0 or self.number_i > len(indices):
+            if self.number_i > len(indices):
+                logger.warning(
+                    "`number_i` is larger than the number of atoms in "
+                    "`atom_group`. All atoms will be selected."
+                )
+            self.index_i = np.array(indices)
         else:
-            self.index_i = np.random.choice(self.atom_group.atoms.indices, size=self.number_i, replace=False)
+            self.index_i = self._rng.choice(
+                indices,
+                size=self.number_i,
+                replace=False,
+            )
 
     def collect_data(self):
         """Collect data by looping over atoms, time, and evaluate correlation"""
