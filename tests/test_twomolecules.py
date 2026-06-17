@@ -16,14 +16,6 @@ import pytest
 from nmrdfrommd import NMRD
 from nmrdfrommd.geometry import compute_rij, cartesian_to_spherical
 
-@pytest.fixture
-def twomol_universe():
-    data = "datafiles/twomolecules/twomolecules.data"
-    trj = "datafiles/twomolecules/twomolecules.xtc"
-    u = mda.Universe(data, trj)
-    group_H2O = u.select_atoms("type 2") # pick one H per molecule
-    return u, group_H2O
-
 def test_shape_array(twomol_universe):
     """Assert that the data matrix dimension is consistent."""
     u, group_H2O = twomol_universe

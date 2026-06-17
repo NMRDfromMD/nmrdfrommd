@@ -1,6 +1,7 @@
 **/__pycache__
 **/**.pyc
 **/.*npz
+**/.*lock
 build/
 *.egg-info/
 dist/

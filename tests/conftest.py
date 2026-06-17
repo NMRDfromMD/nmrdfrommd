@@ -19,3 +19,11 @@ def universe_small():
     ag = u.atoms
 
     return u, ag
+
+@pytest.fixture
+def twomol_universe():
+    data = "datafiles/twomolecules/twomolecules.data"
+    trj = "datafiles/twomolecules/twomolecules.xtc"
+    u = mda.Universe(data, trj)
+    group_H2O = u.select_atoms("type 2") # pick one H per molecule
+    return u, group_H2O
