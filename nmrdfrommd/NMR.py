@@ -106,27 +106,38 @@ class NMRD:
         self.GAMMA = None
 
         # For storing results
-        self.results = {
-            "gij": None,
-            "t": None,
-            "J": None,
-            "f": None,
-            "R1": None,
-            "R2": None,
-            "T1": None,
-            "T2": None,
-        }
+        # self.results = {
+        #     "gij": None,
+        #     "t": None,
+        #     "J": None,
+        #     "f": None,
+        #     "R1": None,
+        #     "R2": None,
+        #     "T1": None,
+        #     "T2": None,
+        # }
+
+        self.results = {}
 
     def run_analysis(self):
-        """Run full NMR analysis pipeline.
-        
-        # Example of use:
-        nmr = NMR(u, atom_group, type_analysis='inter_molecular')
-        nmr.run_analysis()
+        """
+        Run the full NMR relaxation analysis pipeline.
+
+        This method executes the complete workflow:
+            1. Initialization of physical constants and atom selection
+            2. Correlation data collection from the MD trajectory
+            3. Fourier transform and spectral density computation
+            4. Relaxation time calculation (T1, T2)
+
+        Returns
+        -------
+        dict
+            Dictionary containing all computed results
         """
         self.initialize()
         self.collect_data()
         self.finalize()
+        return self.results
 
     def initialize(self):
         """Prepare the calculation"""
@@ -195,49 +206,51 @@ class NMRD:
             )
 
     def collect_data(self):
-        """Collect data by looping over atoms, time, and evaluate correlation"""
-        # Loop on all the atom of group i
-        for cpt_i, _ in enumerate(self.index_i):
-            self.cpt_i = cpt_i
-            self.select_atoms_group_i()
-            self.select_atoms_group_j()
-            if cpt_i == 0:
+        """Collect correlation data over selected atoms and trajectory."""
+
+        # In case the script is called twice
+        self.data = None
+        self.results["gij"] = None
+        
+        for i_idx in self.index_i:
+
+            self.select_atoms_group_i(i_idx)
+            self.select_atoms_group_j(i_idx)
+
+            if self.results.get("gij") is None:
                 self.initialise_data()
+
             self.loop_over_trajectory()
             self.calculate_correlation_ij()
 
-    def select_atoms_group_i(self):
-        """Select atoms of the group i for the calculation."""
-        self.group_i = self.u.select_atoms('index ' + str(self.index_i[self.cpt_i]))
-        self.resids_i = self.group_i.resids[self.group_i.atoms.indices == self.index_i[self.cpt_i]]
+    def select_atoms_group_i(self, i_idx):
+        """Select atoms of group i for calculation."""
+        self.group_i = self.u.select_atoms(f'index {i_idx}')
+        self.resids_i = self.group_i.resids
 
-    def select_atoms_group_j(self):
-        """Select atoms of the group j for the calculation.
+    def select_atoms_group_j(self, i_idx):
+        """Select atoms of group j depending on analysis type."""
 
-        For intra molecular analysis, group j are made of atoms of the
-        same residue as group i.
-        For inter molecular analysis, group j are made of atoms of
-        different residues as group i.
-        For full analysis, group j are made of atoms that are not in group i.
-        """
-        res_id_i = self.resids_i[0]
-        idx_i = self.index_i[self.cpt_i]
-        
-        conditions = {
-            "intra_molecular": lambda: (self.neighbor_group.resids == res_id_i) & (self.neighbor_group.indices != idx_i),
-            "inter_molecular": lambda: (self.neighbor_group.resids != res_id_i),
-            "full": lambda: (self.neighbor_group.indices != idx_i),
-        }
-        
-        if self.type_analysis not in conditions:
+        res_id_i = self.group_i.resids[0]
+
+        if self.type_analysis == "intra_molecular":
+            mask = (self.neighbor_group.resids == res_id_i) & (self.neighbor_group.indices != i_idx)
+
+        elif self.type_analysis == "inter_molecular":
+            mask = (self.neighbor_group.resids != res_id_i)
+
+        elif self.type_analysis == "full":
+            mask = (self.neighbor_group.indices != i_idx)
+
+        else:
             raise ValueError(f"Unknown type_analysis: {self.type_analysis}")
-        
-        index_j = self.neighbor_group.atoms.indices[conditions[self.type_analysis]()]
+
+        index_j = self.neighbor_group.indices[mask]
+
         if len(index_j) == 0:
-            raise ValueError("Empty atom groups j. Wrong combination of type_analysis and group selection?")
-        
-        str_j = ' '.join(map(str, index_j))
-        self.group_j = self.u.select_atoms(f'index {str_j}')
+            raise ValueError("Empty atom group j (check selection logic)")
+
+        self.group_j = self.neighbor_group[index_j]
 
     def initialise_data(self):
         """Initialise arrays.
@@ -247,21 +260,22 @@ class NMRD:
         is used.
         Create an array for of values separated by timestep for the time. 
         """
+        n_frames = self.u.trajectory.n_frames
         if self.isotropic:
-            self.data = np.zeros((self.dim, self.u.trajectory.n_frames,
+            self.data = np.zeros((self.dim, n_frames,
                                     self.group_j.atoms.n_atoms),
                                     dtype=np.float16)
         else:
-            self.data = np.zeros((self.dim, self.u.trajectory.n_frames,
+            self.data = np.zeros((self.dim, n_frames,
                                     self.group_j.atoms.n_atoms),
                                     dtype=np.complex64)
-        self.results["gij"] = np.zeros((self.dim,  self.u.trajectory.n_frames),
+        self.results["gij"] = np.zeros((self.dim,  n_frames),
                                 dtype=np.float32)
         if self.frame_interval is None:
             self.timestep = np.round(self.u.trajectory.dt, 4)
         else:
             self.timestep = self.frame_interval
-        self.results["t"] = np.arange(self.u.trajectory.n_frames) * self.timestep
+        self.results["t"] = np.arange(n_frames) * self.timestep
 
     def loop_over_trajectory(self):
         """Loop of the MDA trajectory and extract rij. 
@@ -307,7 +321,7 @@ class NMRD:
         Optional, for coarse grained model, apply a coefficient "hydrogen_per_atom" != 1
         """
         # normalise gij by the number of iteration (or number of pair spin)
-        self.results["gij"] /= self.cpt_i+1
+        self.results["gij"] /= len(self.index_i)
         if self.hydrogen_per_atom != 1:
             self.results["gij"] *= np.float32(self.hydrogen_per_atom)
 
