@@ -106,17 +106,6 @@ class NMRD:
         self.GAMMA = None
 
         # For storing results
-        # self.results = {
-        #     "gij": None,
-        #     "t": None,
-        #     "J": None,
-        #     "f": None,
-        #     "R1": None,
-        #     "R2": None,
-        #     "T1": None,
-        #     "T2": None,
-        # }
-
         self.results = {}
 
     def run_analysis(self):
@@ -311,7 +300,7 @@ class NMRD:
         """
         # normalise gij by the number of iteration (or number of pair spin)
         self.results["gij"] /= len(self.index_i)
-        # self.results["gij"].gij /= self.results["gij"].cpt_i+1
+
         if self.hydrogen_per_atom != 1:
             self.results["gij"] *= np.float32(self.hydrogen_per_atom)
 
