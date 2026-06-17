@@ -27,7 +27,7 @@ from .correlation import autocorrelation_function, normalize_correlation
 from .fourier import compute_spectral_density
 from .geometry import compute_rij, cartesian_to_spherical, spherical_harmonic_kernel
 from .constants import get_gyromagnetic_ratio, ALPHA_M, dipolar_prefactor
-from .utilities import find_nearest, log_bin
+from .utilities import find_nearest, log_bin_arrays
 from .relaxation import compute_relaxation_rates
 from .errors import NON_ORTHOGONAL_BOX, INVALID_TYPE_ANALYSIS
 
@@ -306,12 +306,11 @@ class NMRD:
         """Calculate relaxation rates R1 and R2 from spectral density J."""
         self.results["R1"], self.results["R2"] = compute_relaxation_rates(
             self.results["f"], self.results["J"], self.K, self.isotropic)
-
-        # _, R1_log = log_bin(self.results["f"], self.results["R1"] , num_bins=self.num_log_points)
-        # f_log, R2_log = log_bin(self.results["f"], self.results["R2"] , num_bins=self.num_log_points)
-        # self.f_log = f_log
-        # self.R1_log = R1_log
-        # self.R2_log = R2_log
+            
+        self.results["log"] = log_bin_arrays(
+            self.results["f"],
+            {"R1": self.results["R1"], "R2": self.results["R2"]},
+            self.num_log_points)
 
     def calculate_relaxationtime(self):
         """Calculate T1 and T2 relaxation times from spectral density.

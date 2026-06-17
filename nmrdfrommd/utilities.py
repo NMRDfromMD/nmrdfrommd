@@ -80,3 +80,29 @@ def log_bin(x, y, num_bins):
     ])
 
     return bin_centers, binned_y
+
+def log_bin_arrays(f, arrays, num_bins):
+    """Log-bin multiple frequency-domain quantities onto a shared grid.
+
+    Parameters
+    ----------
+    f : np.ndarray
+        Frequency array shared by all input arrays.
+    arrays : dict[str, np.ndarray]
+        Named arrays to log-bin (e.g. {"R1": R1, "R2": R2}), each defined
+        on the same frequency grid as f.
+    num_bins : int
+        Number of logarithmically spaced bins.
+
+    Returns
+    -------
+    dict
+        Log-binned frequency under "f", plus each log-binned array under
+        its original name.
+    """
+    binned = {}
+    f_log = None
+    for name, values in arrays.items():
+        f_log, binned[name] = log_bin(f, values, num_bins=num_bins)
+    binned["f"] = f_log
+    return binned
