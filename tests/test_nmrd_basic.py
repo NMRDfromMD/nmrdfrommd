@@ -14,6 +14,7 @@ import numpy as np
 
 from nmrdfrommd import NMRD
 
+
 @pytest.fixture
 def twomol_universe():
     data = "datafiles/twomolecules/twomolecules.data"

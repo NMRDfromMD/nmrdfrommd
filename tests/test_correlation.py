@@ -14,7 +14,6 @@ def reference_autocorrelation(data):
 
     return ac
 
-
 def test_autocorrelation_matches_reference():
     """FFT autocorrelation matches the direct implementation."""
     rng = np.random.default_rng(12345)

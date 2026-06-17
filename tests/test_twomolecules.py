@@ -16,6 +16,7 @@ import pytest
 from nmrdfrommd import NMRD
 from nmrdfrommd.geometry import compute_rij, cartesian_to_spherical
 
+
 def test_shape_array(twomol_universe):
     """Assert that the data matrix dimension is consistent."""
     u, group_H2O = twomol_universe

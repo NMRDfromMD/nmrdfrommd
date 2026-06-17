@@ -1,6 +1,7 @@
 import numpy as np
 from nmrdfrommd.fourier import fourier_transform
 
+
 def test_fourier_transform_frequency_axis():
     """Frequency axis matches FFT definition for uniform sampling."""
     t_ps = np.linspace(0, 10, 100)
