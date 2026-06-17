@@ -122,3 +122,26 @@ def calculate_tau(J, gij, dim, integral=False, t=None, oneDarray=False):
             tau.append(tau_m / cst.pico)
 
         return np.array(tau)
+
+def normalize_correlation(gij, n_pairs, hydrogen_per_atom=1.0):
+    """Normalize correlation function by number of spin pairs.
+
+    Parameters
+    ----------
+    gij : np.ndarray
+        Correlation function, shape (dim, n_frames).
+    n_pairs : int
+        Number of atom pairs summed into gij (used to average).
+    hydrogen_per_atom : float, default 1.0
+        Multiplier for coarse-grained models representing more than
+        one hydrogen per atom.
+
+    Returns
+    -------
+    np.ndarray
+        Normalized correlation function, same shape as input.
+    """
+    gij_normalized = gij / n_pairs
+    if hydrogen_per_atom != 1:
+        gij_normalized = gij_normalized * np.float32(hydrogen_per_atom)
+    return gij_normalized

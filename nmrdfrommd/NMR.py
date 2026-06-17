@@ -23,11 +23,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logging.getLogger("MDAnalysis").setLevel(logging.WARNING) # Suppress MDAnalysis logs
 
-from .correlation import autocorrelation_function
-from .fourier import fourier_transform
+from .correlation import autocorrelation_function, normalize_correlation
+from .fourier import compute_spectral_density
 from .geometry import compute_rij, cartesian_to_spherical, spherical_harmonic_kernel
 from .constants import get_gyromagnetic_ratio, ALPHA_M, dipolar_prefactor
 from .utilities import find_nearest, log_bin
+from .errors import NON_ORTHOGONAL_BOX, INVALID_TYPE_ANALYSIS
 
 
 class NMRD:
@@ -140,10 +141,7 @@ class NMRD:
         allowed_analysis = {"inter_molecular", "intra_molecular", "full"}
 
         if self.type_analysis not in allowed_analysis:
-            raise ValueError(
-                f"Invalid type_analysis='{self.type_analysis}'. "
-                f"Must be one of {sorted(allowed_analysis)}."
-            )
+            raise ValueError(INVALID_TYPE_ANALYSIS)
 
         if self.atom_group.n_atoms == 0:
             raise ValueError("atom_group is empty (n_atoms=0).")
@@ -242,7 +240,7 @@ class NMRD:
         if self.isotropic:
             self.data = np.zeros((self.dim, n_frames,
                                     self.group_j.atoms.n_atoms),
-                                    dtype=np.float16)
+                                    dtype=np.float32)
         else:
             self.data = np.zeros((self.dim, n_frames,
                                     self.group_j.atoms.n_atoms),
@@ -269,14 +267,11 @@ class NMRD:
             # Ensure that the box is orthonormal
             angles = self.box[3:]
             if not (np.allclose(angles, angles[0]) and np.isclose(angles[0], 90.0)):
-                raise ValueError("NMRforMD does not accept non-orthogonal box"
-                                 "You can use triclinic_to_orthorhombic from the package"
-                                 "lipyphilic to convert the trajectory file.")
+                raise ValueError(NON_ORTHOGONAL_BOX)
         
             rij = compute_rij(self.position_i, self.position_j, self.box, self.pbc)
             r, theta, phi = cartesian_to_spherical(rij)
             F_val = spherical_harmonic_kernel(r, theta, phi, self.alpha_m, self.isotropic)
-            # F_val = np.array(F_val)  # shape: (dim, n_j_atoms)
             self.data[:, cpt] = F_val
 
     def calculate_correlation_ij(self):
@@ -289,34 +284,22 @@ class NMRD:
     def finalize(self):
         # calculate spectrums
         self.normalize_Gij()
-        self.calculate_fourier_transform()
+        self.calculate_spectral_density()
         self.calculate_spectrum()
         self.calculate_relaxationtime()
 
     def normalize_Gij(self):
         """Divide Gij by the number of spin pairs.
-        
         Optional, for coarse grained model, apply a coefficient "hydrogen_per_atom" != 1
         """
-        # normalise gij by the number of iteration (or number of pair spin)
-        self.results["gij"] /= len(self.index_i)
+        self.results["gij"] = normalize_correlation(
+            self.results["gij"], len(self.index_i), self.hydrogen_per_atom
+        )
 
-        if self.hydrogen_per_atom != 1:
-            self.results["gij"] *= np.float32(self.hydrogen_per_atom)
-
-    def calculate_fourier_transform(self):
-        """Calculate spectral density J.
-        
-        Calculate the spectral density J from the 
-        Fourier transform of the correlation function.
-        """
-        # for coarse grained models, possibly more than 1 hydrogen per atom
-        self.results["J"] = []
-        for m in range(self.dim):
-            fij = fourier_transform(np.vstack([self.results["t"], self.results["gij"][m]]).T)
-            self.results["J"].append(np.real(fij.T[1]))
-        self.results["J"] = np.array(self.results["J"])
-        self.results["f"] = np.real(fij.T[0])
+    def calculate_spectral_density(self):
+        """Calculate spectral density J from the Fourier transform of the correlation function."""
+        self.results["f"], self.results["J"] = compute_spectral_density(
+            self.results["t"], self.results["gij"], self.dim)
 
     def calculate_spectrum(self):
         """Calculate relaxation rates R1 and R2 from spectral density J."""
