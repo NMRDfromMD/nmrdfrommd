@@ -65,21 +65,36 @@ def cartesian_to_spherical(rij):
     return r, theta, phi
 
 def spherical_harmonic_kernel(r, theta, phi, alpha_m, isotropic=True):
-    """Evaluate the spherical harmonics-based F function.
-    
-    If isotropic=True, takes only the real part of the spherical harmonic product.
-    If isotropic=False, returns the full complex result.
+    """Evaluate the rank-2 spherical harmonic kernel F_m(r, theta, phi).
+
+    Computes F_m = alpha_m * Y_2^m(theta, phi) / r**3 for each required m.
+    For isotropic (bulk) systems only m=0 is needed, and only its real
+    part is returned since Y_2^0 is real-valued.
+
+    Parameters
+    ----------
+    r : np.ndarray
+        Inter-atomic distances, in Angstrom.
+    theta : np.ndarray
+        Polar (colatitudinal) angle, in [0, pi], same shape as r.
+    phi : np.ndarray
+        Azimuthal (longitudinal) angle, in [0, 2*pi], same shape as r.
+    alpha_m : np.ndarray
+        Rank-2 spherical harmonic normalization coefficients, indexed by m.
+    isotropic : bool, default True
+        If True, only m=0 is evaluated and its real part returned.
+        If False, m=0, 1, 2 are evaluated and the full complex result
+        is returned.
+
+    Returns
+    -------
+    np.ndarray
+        F values, shape (1, *r.shape) if isotropic else (3, *r.shape).
     """
-    # Define the m values based on whether the system is isotropic
     m_values = [0] if isotropic else [0, 1, 2]
     F_val = []
     for m in m_values:
-        # Calculate the spherical harmonic for the current m value
-        # sph_harm_value = sph_harm(m, 2, phi, theta)
-        sph_harm_value = sph_harm_y(2, m, theta, phi)
-        # Apply the coefficient alpha_m, adjust for isotropy, and scale by r^3
-        if isotropic:
-            F_val.append((alpha_m[m] * sph_harm_value).real / r**3)
-        else:
-            F_val.append(alpha_m[m] * sph_harm_value / r**3)
-    return F_val
+        Y2m = sph_harm_y(2, m, theta, phi)
+        F_m = alpha_m[m] * Y2m / r**3
+        F_val.append(F_m.real if isotropic else F_m)
+    return np.stack(F_val)
