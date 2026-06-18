@@ -63,7 +63,7 @@ class NMRD:
     hydrogen_per_atom : float, default 1.0
         Specify the number of hydrogen per atom, useful for 
         coarse-grained simulations.
-    pdb : bool, default True
+    pbc : bool, default True
         To turn off/on the periodic boundary condition treatment.            
     """
 
@@ -196,7 +196,7 @@ class NMRD:
     def collect_data(self):
         """Collect data by looping over atoms, time, and evaluate correlation"""
 
-        self.initialise_accumulators()
+        self.initialize_accumulators()
 
         # Loop on all the atom of group i
         for i_idx in self.index_i:
@@ -207,9 +207,8 @@ class NMRD:
             self.loop_over_trajectory()
             self.calculate_correlation_ij()
 
-    def initialise_accumulators(self):
-        """Initialise the time axis and the correlation accumulator.
-        """
+    def initialize_accumulators(self):
+        """Initialize the time axis and the correlation accumulator."""
         n_frames = self.u.trajectory.n_frames
         self.results["gij"] = np.zeros((self.dim, n_frames), dtype=np.float32)
 
@@ -241,31 +240,6 @@ class NMRD:
             self.type_analysis,
         )
         self.group_j = self.u.select_atoms(f'index {" ".join(map(str, index_j))}')
-
-    def initialise_data(self):
-        """Initialise arrays.
-
-        Create an array of zeros for the data and the correlation function.
-        If anisotropic, the spherical harmonic may be complex, so dtype=complex64
-        is used.
-        Create an array for of values separated by timestep for the time. 
-        """
-        n_frames = self.u.trajectory.n_frames
-        if self.isotropic:
-            self.data = np.zeros((self.dim, n_frames,
-                                    self.group_j.atoms.n_atoms),
-                                    dtype=np.float32)
-        else:
-            self.data = np.zeros((self.dim, n_frames,
-                                    self.group_j.atoms.n_atoms),
-                                    dtype=np.complex64)
-        self.results["gij"] = np.zeros((self.dim,  n_frames),
-                                dtype=np.float32)
-        if self.frame_interval is None:
-            self.timestep = np.round(self.u.trajectory.dt, 4)
-        else:
-            self.timestep = self.frame_interval
-        self.results["t"] = np.arange(n_frames) * self.timestep
 
     def loop_over_trajectory(self):
         """Loop of the MDA trajectory and extract rij. 
@@ -307,8 +281,7 @@ class NMRD:
         Optional, for coarse grained model, apply a coefficient "hydrogen_per_atom" != 1
         """
         self.results["gij"] = normalize_correlation(
-            self.results["gij"], len(self.index_i), self.hydrogen_per_atom
-        )
+            self.results["gij"], len(self.index_i), self.hydrogen_per_atom)
 
     def calculate_spectral_density(self):
         """Calculate spectral density J from the Fourier transform of the correlation function."""
