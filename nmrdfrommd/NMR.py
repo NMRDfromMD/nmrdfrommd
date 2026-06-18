@@ -195,17 +195,43 @@ class NMRD:
 
     def collect_data(self):
         """Collect data by looping over atoms, time, and evaluate correlation"""
+
+        self.initialise_accumulators()
+
         # Loop on all the atom of group i
         for i_idx in self.index_i:
 
             self.select_atoms_group_i(i_idx)
             self.select_atoms_group_j(i_idx)
-
-            if i_idx == self.index_i[0]:
-                self.initialise_data()
-
+            self.allocate_data_buffer()
             self.loop_over_trajectory()
             self.calculate_correlation_ij()
+
+    def initialise_accumulators(self):
+        """Initialise the time axis and the correlation accumulator.
+
+        These depend only on n_frames, not on group_j, so they're set up
+        once before looping over atoms.
+        """
+        n_frames = self.u.trajectory.n_frames
+        self.results["gij"] = np.zeros((self.dim, n_frames), dtype=np.float32)
+
+        if self.frame_interval is None:
+            self.timestep = np.round(self.u.trajectory.dt, 4)
+        else:
+            self.timestep = self.frame_interval
+        self.results["t"] = np.arange(n_frames) * self.timestep
+        
+    def allocate_data_buffer(self):
+        """Allocate the per-atom F-value buffer, sized to the current group_j.
+
+        Must run for every atom i — group_j's size can vary between atoms
+        (e.g. intra_molecular/inter_molecular selection, or heterogeneous
+        systems with molecules of different sizes).
+        """
+        n_frames = self.u.trajectory.n_frames
+        dtype = np.float32 if self.isotropic else np.complex64
+        self.data = np.zeros((self.dim, n_frames, self.group_j.atoms.n_atoms), dtype=dtype)
 
     def select_atoms_group_i(self, i_idx):
         """Select atoms of group i for calculation."""
