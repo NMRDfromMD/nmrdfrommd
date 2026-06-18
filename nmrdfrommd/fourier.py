@@ -9,7 +9,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import numpy as np
-from scipy import constants as cst
+from .units import PS_TO_S, HZ_TO_MHZ
 
 # This Fourier transform implementation is numerically correct
 # but scientifically fragile due to implicit unit handling and
@@ -64,10 +64,10 @@ def fourier_transform(data, normalize=False):
     if not np.allclose(np.diff(data[:, 0]), dt_ps):
         raise ValueError("Non-uniform time spacing detected.")
 
-    dt = dt_ps * cst.pico # convert to seconds
+    dt = dt_ps * PS_TO_S
 
     n = len(data)
-    freqs = np.fft.rfftfreq(n, dt) / cst.mega  # in MHz
+    freqs = np.fft.rfftfreq(n, dt) * HZ_TO_MHZ  # in MHz
     fft_norm = 'ortho' if normalize else None
     spectrum = np.fft.rfft(data[:, 1], norm=fft_norm) * dt * 2
 
