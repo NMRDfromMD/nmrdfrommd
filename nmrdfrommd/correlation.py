@@ -76,9 +76,11 @@ def autocorrelation_function(
 
     return autocorr / normalization
 
-def calculate_tau(J, gij, dim, integral=False, t=None, oneDarray=False):
+def compute_correlation_time(J, gij, dim, integral=False, t=None, oneDarray=False):
     """
     Compute the correlation time τ = 0.5 * J(0) / G(0) or from integral.
+
+    Not run automatically by run_analysis(); call this afterward if needed.
 
     Parameters
     ----------

@@ -10,8 +10,6 @@
 
 
 import numpy as np
-from scipy import constants as cst
-from scipy.interpolate import interp1d
 import MDAnalysis as mda
 import logging
 

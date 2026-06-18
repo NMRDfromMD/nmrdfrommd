@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import constants as cst
 
-from nmrdfrommd.correlation import autocorrelation_function, calculate_tau
+from nmrdfrommd.correlation import autocorrelation_function, compute_correlation_time
 
 
 def reference_autocorrelation(data):
@@ -114,7 +114,7 @@ def test_calculate_tau_oneD_analytic():
     J = np.array([2.0])
     gij = np.array([1.0])
 
-    tau = calculate_tau(J, gij, dim=1, oneDarray=True)
+    tau = compute_correlation_time(J, gij, dim=1, oneDarray=True)
 
     expected = 0.5 * 2.0 / 1.0 / cst.pico
 
@@ -126,7 +126,7 @@ def test_calculate_tau_oneD_integral():
     gij = np.ones_like(t)
     J = np.array([1.0])
 
-    tau = calculate_tau(J, gij, dim=1, integral=True, t=t, oneDarray=True)
+    tau = compute_correlation_time(J, gij, dim=1, integral=True, t=t, oneDarray=True)
 
     expected = np.trapezoid(gij, t) / gij[0] / cst.pico
 
