@@ -209,9 +209,6 @@ class NMRD:
 
     def initialise_accumulators(self):
         """Initialise the time axis and the correlation accumulator.
-
-        These depend only on n_frames, not on group_j, so they're set up
-        once before looping over atoms.
         """
         n_frames = self.u.trajectory.n_frames
         self.results["gij"] = np.zeros((self.dim, n_frames), dtype=np.float32)
@@ -223,12 +220,7 @@ class NMRD:
         self.results["t"] = np.arange(n_frames) * self.timestep
         
     def allocate_data_buffer(self):
-        """Allocate the per-atom F-value buffer, sized to the current group_j.
-
-        Must run for every atom i — group_j's size can vary between atoms
-        (e.g. intra_molecular/inter_molecular selection, or heterogeneous
-        systems with molecules of different sizes).
-        """
+        """Allocate the per-atom F-value buffer, sized to the current group_j."""
         n_frames = self.u.trajectory.n_frames
         dtype = np.float32 if self.isotropic else np.complex64
         self.data = np.zeros((self.dim, n_frames, self.group_j.atoms.n_atoms), dtype=dtype)
