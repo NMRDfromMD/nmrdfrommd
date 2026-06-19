@@ -19,9 +19,9 @@ Publish a new pip version by following those
     python3 setup.py sdist
 ```
 
-3 - Create a new release on Github using the generated tar.gz file located in dist/
+3 - Create a new release on GitHub using the generated tar.gz file located in dist/
 
-4 - Update the link in setup.py
+4 - Update the link terminating with *tar.gz* in setup.py
 
 5 - Create wheel using:
 

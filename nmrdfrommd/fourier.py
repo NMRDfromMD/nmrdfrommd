@@ -11,65 +11,94 @@
 import numpy as np
 from .units import PS_TO_S, HZ_TO_MHZ
 
-# This Fourier transform implementation is numerically correct
-# but scientifically fragile due to implicit unit handling and
-# normalization choices. The function mixes time units (picoseconds → seconds),
-# frequency scaling (Hz → MHz), and FFT normalization conventions in a way
-# that is not explicitly enforced in the API. This makes the output sensitive
-# to hidden assumptions and easy to misuse when integrating with external
-# data or tests using different unit conventions. In scientific workflows,
-# such ambiguity can silently introduce errors of several orders of magnitude
-# without triggering runtime failures. A safer design would enforce a single
-# consistent unit system at the API boundary (preferably SI units), and delegate
-# all unit conversions explicitly to the caller, ensuring that the Fourier
-# transform itself operates on dimensionless or strictly defined inputs
-# and produces well-defined spectral outputs.
 
-def fourier_transform(data, normalize=False):
+def fourier_transform(
+    data,
+    *,
+    normalize=False,
+    spectrum_scaling="two_sided_time_domain",
+    output_freq_unit="MHz"
+):
     """
-    Compute the Fourier transform of a time-domain signal.
+    Convention-explicit Fourier transform.
 
-    Converts time-domain data into frequency-domain data using FFT.
-
-    Input:
-        data[:, 0] -- Time (in picoseconds)
-        data[:, 1] -- Signal amplitude (arbitrary units)
-
-    Output:
-        data[:, 0] -- Frequency (in MHz)
-        data[:, 1] -- Fourier-transformed signal (scaled to s * signal)
+    Assumptions (fixed by MDA):
+    - time is in picoseconds (ps)
+    - sampling is uniform
+    - output frequency default unit is MHz
 
     Parameters
     ----------
     data : np.ndarray
-        2D array with shape (N, 2) where column 0 is time (ps) and column 1 is signal.
-    normalize : bool, optional
-        If True, apply unitary normalization to the FFT (i.e., divide by sqrt(N)).
+        Shape (N, 2): [time_ps, signal]
+
+    normalize : bool
+        If True, apply orthonormal FFT normalization (numpy 'ortho').
+
+    spectrum_scaling : str
+        Defines Fourier convention:
+
+        - "raw_rfft"
+            np.fft.rfft(x) (no scaling)
+
+        - "continuous_time"
+            Approximates continuous FT:
+            FFT * dt
+
+        - "two_sided_time_domain"
+            Continuous FT + one-sided correction:
+            FFT * dt * 2
+
+    output_freq_unit : str
+        "MHz" or "Hz"
 
     Returns
     -------
     np.ndarray
-        Transformed data with shape (M, 2), where M = N//2 + 1:
-        Column 0 is frequency (MHz), column 1 is complex signal (s * signal units).
+        Column 0: frequency
+        Column 1: complex spectrum
     """
 
     if data.shape[1] != 2:
-        raise ValueError("Input data must be a 2D array with two columns: time (ps), signal.")
+        raise ValueError("Input must be (N, 2): time_ps, signal")
 
     if len(data) < 2:
-        raise ValueError("Need at least two samples to compute time step.")
+        raise ValueError("Need at least two samples")
 
-    dt_ps = data[1, 0] - data[0, 0] # in picoseconds
+    # --- time handling (fixed by MDA contract) ---
+    dt_ps = data[1, 0] - data[0, 0]
 
     if not np.allclose(np.diff(data[:, 0]), dt_ps):
-        raise ValueError("Non-uniform time spacing detected.")
+        raise ValueError("Non-uniform time spacing detected")
 
     dt = dt_ps * PS_TO_S
-
     n = len(data)
-    freqs = np.fft.rfftfreq(n, dt) * HZ_TO_MHZ  # in MHz
-    fft_norm = 'ortho' if normalize else None
-    spectrum = np.fft.rfft(data[:, 1], norm=fft_norm) * dt * 2
+
+    # --- frequency axis (pure FFT definition) ---
+    freqs_hz = np.fft.rfftfreq(n, dt)
+
+    # --- scaling convention (explicit choice) ---
+    spectrum = np.fft.rfft(data[:, 1], norm="ortho" if normalize else None)
+
+    if spectrum_scaling == "raw_rfft":
+        pass
+
+    elif spectrum_scaling == "continuous_time":
+        spectrum = spectrum * dt
+
+    elif spectrum_scaling == "two_sided_time_domain":
+        spectrum = spectrum * dt * 2
+
+    else:
+        raise ValueError(f"Unknown spectrum_scaling: {spectrum_scaling}")
+
+    # --- unit conversion (explicit boundary step) ---
+    if output_freq_unit == "Hz":
+        freqs = freqs_hz
+    elif output_freq_unit == "MHz":
+        freqs = freqs_hz * HZ_TO_MHZ
+    else:
+        raise ValueError(f"Unknown output_freq_unit: {output_freq_unit}")
 
     return np.column_stack((freqs, spectrum))
 
