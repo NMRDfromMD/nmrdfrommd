@@ -50,7 +50,7 @@ def compute_relaxation_rates(f, J, K, isotropic):
         J1 = J[1]                                                         # Angstrom^-6 * s
         J2 = interp1d(f, J[2], fill_value="extrapolate")(2 * f)           # Angstrom^-6 * s
         R1 = prefactor * (J1 + J2)                                        # s^-1
-        R2 = prefactor * (1 / 4) * (J0[idx0] + 10 * J1 + J2)              # s^-1
+        R2 = prefactor * (J0[idx0] + 10 * J1 + J2) / 4                    # s^-1
 
     return R1, R2  # s^-1, s^-1
 
