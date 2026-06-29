@@ -7,13 +7,9 @@ limits of NMR relaxation theory.
 """
 
 import numpy as np
-
 from nmrdfrommd import NMRD
 
 
-# ------------------------------------------------------------
-# 1. Extreme narrowing limit: R1 = R2
-# ------------------------------------------------------------
 def test_extreme_narrowing_R1_equals_R2(twomol_universe):
 
     u, group = twomol_universe
@@ -30,9 +26,6 @@ def test_extreme_narrowing_R1_equals_R2(twomol_universe):
     np.testing.assert_allclose(R1[mask], R2[mask], rtol=1e-6)
 
 
-# ------------------------------------------------------------
-# 2. Constant distance rigid dipole: analytical Redfield form
-# ------------------------------------------------------------
 def test_rigid_dipole_analytical_limit(twomol_universe):
     """
     For a rigid dipole (no distance fluctuations),
@@ -63,9 +56,6 @@ def test_rigid_dipole_analytical_limit(twomol_universe):
     np.testing.assert_allclose(ratio, 1.0, rtol=1e-6)
 
 
-# ------------------------------------------------------------
-# 2. Relaxation positivity (thermodynamic sanity check)
-# ------------------------------------------------------------
 def test_relaxation_rates_positive(twomol_universe):
     """
     All physically meaningful R1, R2 must be >= 1e-12.
