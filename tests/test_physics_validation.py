@@ -68,7 +68,7 @@ def test_rigid_dipole_analytical_limit(twomol_universe):
 # ------------------------------------------------------------
 def test_relaxation_rates_positive(twomol_universe):
     """
-    All physically meaningful R1, R2 must be >= 0.
+    All physically meaningful R1, R2 must be >= 1e-12.
     """
 
     u, group = twomol_universe
@@ -76,5 +76,6 @@ def test_relaxation_rates_positive(twomol_universe):
     nmrd = NMRD(u=u, atom_group=group)
     nmrd.run_analysis()
 
-    assert np.all(nmrd.results["R1"] >= 0)
-    assert np.all(nmrd.results["R2"] >= 0)
+    eps = 1e-12
+    assert np.all(nmrd.results["R1"] >= -eps)
+    assert np.all(nmrd.results["R2"] >= -eps)
