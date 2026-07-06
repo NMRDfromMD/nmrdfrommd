@@ -27,3 +27,31 @@ jobs:
         cd tests
         coverage run --branch -m pytest --disable-pytest-warnings .
         coverage report -m --show-missing
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.12.3"
+
+      - name: Build package
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+          python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          environment: pypi
