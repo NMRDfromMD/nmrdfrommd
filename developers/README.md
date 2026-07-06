@@ -1,10 +1,18 @@
 # NMRDfromMD - Developer section
 
-## How to
+## How to contribute
 
-If you intend to make modification to the code, please raise an issue or send me an email
-first. Then, fork the repository, apply your changes, then make a pull request
-that will be reviewed.
+If you intend to make modifications to the code, please raise an
+issue or send an email first. Then fork the repository, apply
+your changes, and submit a pull request for review.
+
+## Development install
+
+For local development, install the package in editable mode:
+
+```bash
+pip install -e .
+```
 
 ## Publish new pip version (1)
 
@@ -32,7 +40,7 @@ Publish a new pip version by following those
 6 - Upload to pypi using (with the appropriate number):
 
 ``` bash
-    twine upload dist/nmrdfrommd-0.1.0*
+    twine upload dist/nmrdfrommd-0.2.0*
 ```
 
 ## Publish new pip version (2)
