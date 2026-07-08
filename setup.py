@@ -11,13 +11,13 @@
 from setuptools import setup
 
 setup(name='nmrdfrommd',
-      version='0.1.0',
+      version='0.2.0',
       description='Calculate dipolar NMR relaxation rates from \
                    molecular dynamics trajectory file',
       long_description=open('LONG_DESCRIPTION.rst').read(),
       long_description_content_type='text/x-rst',
       url='https://github.com/NMRDfromMD/nmrdfrommd',
-      download_url='https://github.com/NMRDfromMD/nmrdfrommd/releases/download/v0.1.0/nmrdfrommd-0.1.0.tar.gz',  # noqa
+      download_url='https://github.com/NMRDfromMD/nmrdfrommd/releases/download/v0.2.0/nmrdfrommd-0.2.0.tar.gz',  # noqa
       author='Simon Gravelle',
       author_email='simon.gravelle@cnrs.fr',
       license='GNU GENERAL PUBLIC LICENSE',
