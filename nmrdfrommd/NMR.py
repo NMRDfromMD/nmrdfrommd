@@ -169,6 +169,18 @@ class NMRD:
 
         self.alpha_m = ALPHA_M
 
+    @staticmethod
+    def _welford_update(mean, M2, new_value, count):
+        """One online-Welford step, vectorized over the frequency axis."""
+        new_value = np.asarray(new_value, dtype=np.float64)
+        if mean is None:
+            mean = np.zeros_like(new_value)
+            M2 = np.zeros_like(new_value)
+        delta = new_value - mean  # deviation before mean update
+        mean = mean + delta / count
+        M2 = M2 + delta * (new_value - mean)  # deviation after mean update
+        return mean, M2
+
     def _select_atom_group(self):
         """
         Select target atoms for the NMR calculation.
@@ -193,9 +205,17 @@ class NMRD:
                 replace=False,
             )
 
-    def collect_data(self):
-        """Collect data by looping over atoms, time, and evaluate correlation"""
+    def calculate_error_estimates(self):
+        """Std and SEM of R1/R2 across atoms, from the Welford accumulators."""
+        n = self._n_samples
+        for key in ("R1", "R2"):
+            M2 = self.results[f"{key}_M2"]
+            variance = M2 / (n - 1) if n > 1 else np.zeros_like(M2)  # unbiased
+            self.results[f"{key}_std"] = np.sqrt(variance)
+            self.results[f"{key}_sem"] = self.results[f"{key}_std"] / np.sqrt(n)
 
+    def collect_data(self):
+        """Collect data by looping over atoms, time, and evaluate correlation."""
         self.initialize_accumulators()
 
         # Loop on all the atom of group i
@@ -205,12 +225,24 @@ class NMRD:
             self.select_atoms_group_j(i_idx)
             self.allocate_data_buffer()
             self.loop_over_trajectory()
-            self.calculate_correlation_ij()
+
+            gij_i = self.calculate_correlation_ij()
+            self.results["gij"] += gij_i  # accumulate raw Gij over atoms
+
+            self.update_error_statistics(gij_i)
 
     def initialize_accumulators(self):
         """Initialize the time axis and the correlation accumulator."""
+
         n_frames = self.u.trajectory.n_frames
         self.results["gij"] = np.zeros((self.dim, n_frames), dtype=np.float32)
+
+        # initialize the Welford statistics,
+        self._n_samples = 0
+        self.results["R1_mean"] = None
+        self.results["R1_M2"] = None
+        self.results["R2_mean"] = None
+        self.results["R2_M2"] = None
 
         if self.frame_interval is None:
             self.timestep = np.round(self.u.trajectory.dt, 4)
@@ -218,6 +250,18 @@ class NMRD:
             self.timestep = self.frame_interval
         self.results["t"] = np.arange(n_frames) * self.timestep
         
+    def update_error_statistics(self, gij_i):
+        """Compute per-atom R1/R2 and fold into running Welford statistics."""
+        gij_i_norm = normalize_correlation(gij_i.copy(), 1, self.hydrogen_per_atom)
+        f_i, J_i = compute_spectral_density(self.results["t"], gij_i_norm, self.dim)
+        R1_i, R2_i = compute_relaxation_rates(f_i, J_i, self.K, self.isotropic)
+
+        self._n_samples += 1
+        self.results["R1_mean"], self.results["R1_M2"] = self._welford_update(
+            self.results["R1_mean"], self.results["R1_M2"], R1_i, self._n_samples)
+        self.results["R2_mean"], self.results["R2_M2"] = self._welford_update(
+            self.results["R2_mean"], self.results["R2_M2"], R2_i, self._n_samples)
+
     def allocate_data_buffer(self):
         """Allocate the per-atom F-value buffer, sized to the current group_j."""
         n_frames = self.u.trajectory.n_frames
@@ -262,12 +306,22 @@ class NMRD:
             F_val = spherical_harmonic_kernel(r, theta, phi, self.alpha_m, self.isotropic)
             self.data[:, cpt] = F_val
 
+    # def calculate_correlation_ij(self):
+    #     """Calculate the correlation function."""
+    #     for idx_j in range(self.group_j.atoms.n_atoms):
+    #         for m in range(self.dim):
+    #             self.results["gij"][m] += autocorrelation_function(self.data[m, :, idx_j])
+    #     self.results["gij"] = np.real(self.results["gij"])
+
     def calculate_correlation_ij(self):
-        """Calculate the correlation function."""
+        """Calculate the correlation function for the current atom i."""
+        gij = np.zeros((self.dim, self.u.trajectory.n_frames), dtype=np.float32)
+
         for idx_j in range(self.group_j.atoms.n_atoms):
             for m in range(self.dim):
-                self.results["gij"][m] += autocorrelation_function(self.data[m, :, idx_j])
-        self.results["gij"] = np.real(self.results["gij"])
+                gij[m] += autocorrelation_function(self.data[m, :, idx_j])
+
+        return np.real(gij)
 
     def finalize(self):
         # calculate spectrums
@@ -275,7 +329,8 @@ class NMRD:
         self.calculate_spectral_density()
         self.calculate_spectrum()
         self.calculate_relaxationtime()
-
+        self.calculate_error_estimates()  # R1/R2 std and SEM across atoms
+        
     def normalize_Gij(self):
         """Divide Gij by the number of spin pairs.
         Optional, for coarse grained model, apply a coefficient "hydrogen_per_atom" != 1
