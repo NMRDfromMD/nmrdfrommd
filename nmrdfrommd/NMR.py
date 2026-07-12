@@ -99,13 +99,20 @@ class NMRD:
         self.seed = seed
         self._rng = np.random.default_rng(seed)
 
-        # placeholder attributes (set during analysis)
+        # placeholder attributes set during analysis
         self.index_i = None
         self.group_i = None
         self.group_j = None
+        self.resids_i = None
         self.alpha_m = None
         self.K = None
         self.GAMMA = None
+        self.timestep = None
+        self.data = None
+        self.position_i = None
+        self.position_j = None
+        self.box = None
+        self._n_samples = None
 
         # For storing results
         self.results = {}
@@ -188,8 +195,11 @@ class NMRD:
                 )
             self.index_i = np.array(indices)
         else:
-            self.index_i = self._rng.choice(indices,
-                size=self.number_i, replace=False)
+            self.index_i = self._rng.choice(
+                indices,
+                size=self.number_i,
+                replace=False
+                )
 
     # --- collect_data() stage ---
     def collect_data(self):
