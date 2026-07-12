@@ -231,6 +231,8 @@ class NMRD:
         self.results["R1_M2"] = None
         self.results["R2_mean"] = None
         self.results["R2_M2"] = None
+        self.results["gij_mean"] = None
+        self.results["gij_M2"] = None
 
         if self.frame_interval is None:
             self.timestep = np.round(self.u.trajectory.dt, 4)
@@ -299,6 +301,8 @@ class NMRD:
         R1_i, R2_i = compute_relaxation_rates(f_i, J_i, self.K, self.isotropic)
 
         self._n_samples += 1
+        self.results["gij_mean"], self.results["gij_M2"] = self._welford_update(
+            self.results["gij_mean"], self.results["gij_M2"], gij_i_norm, self._n_samples)        
         self.results["R1_mean"], self.results["R1_M2"] = self._welford_update(
             self.results["R1_mean"], self.results["R1_M2"], R1_i, self._n_samples)
         self.results["R2_mean"], self.results["R2_M2"] = self._welford_update(
@@ -360,7 +364,7 @@ class NMRD:
     def _calculate_error_estimates(self):
         """Std and SEM of R1/R2 across atoms, from the Welford accumulators."""
         n = self._n_samples
-        for key in ("R1", "R2"):
+        for key in ("R1", "R2", "gij"):
             M2 = self.results[f"{key}_M2"]
             variance = M2 / (n - 1) if n > 1 else np.zeros_like(M2)  # unbiased
             self.results[f"{key}_std"] = np.sqrt(variance)
