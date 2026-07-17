@@ -32,7 +32,6 @@ def test_nmr_initialization(twomol_universe):
         type_analysis='full',
         number_i=1,
         isotropic=True,
-        target_frequency=0.0,
         frame_interval=0.02,
         hydrogen_per_atom=1.0,
         spin=0.5,
@@ -47,7 +46,6 @@ def test_nmr_initialization(twomol_universe):
     assert nmr.type_analysis == 'full'
     assert nmr.number_i == 1
     assert nmr.isotropic is True
-    assert np.isclose(nmr.target_frequency, 0.0)
     assert np.isclose(nmr.frame_interval, 0.02)
     assert np.isclose(nmr.hydrogen_per_atom, 1.0)
     assert np.isclose(nmr.spin, 0.5)

@@ -54,9 +54,6 @@ class NMRD:
         If isotropic is true, only the spherical harmonic of order 0 is considered, 
         which is usually valid for bulk systems. For non-isotropic systems,
         use ``False``.
-    target_frequency : int, default ``None``
-        Frequency at which ``T1`` and ``T2`` are calculated.
-        If ``None``, ``f = 0`` is used.
     frame_interval : float, default ``None``
         Can be used to specify a different time interface between frames than the 
         one detected by MDAnalysis.
@@ -74,7 +71,6 @@ class NMRD:
                 type_analysis: str = "full",
                 number_i: int = 0,
                 isotropic: bool = True,
-                target_frequency: float = None,
                 frame_interval: float = None,
                 hydrogen_per_atom: float = 1.0,
                 spin: float = 1/2,
@@ -90,7 +86,6 @@ class NMRD:
         self.number_i = number_i
         self.isotropic = isotropic
         self.dim = 1 if isotropic else 3
-        self.target_frequency = target_frequency
         self.frame_interval = frame_interval
         self.hydrogen_per_atom = hydrogen_per_atom
         self.spin = spin
@@ -326,8 +321,8 @@ class NMRD:
         self._normalize_gij()
         self._calculate_spectral_density()
         self._calculate_spectrum()
-        self._calculate_relaxationtime()
         self._calculate_error_estimates()
+        self._calculate_relaxationtime()
 
     def _normalize_gij(self):
         """Divide Gij by the number of spin pairs.
@@ -351,16 +346,6 @@ class NMRD:
             {"R1": self.results["R1"], "R2": self.results["R2"]},
             self.num_log_points)
 
-    def _calculate_relaxationtime(self):
-        """Calculate T1 and T2 relaxation times from spectral density.
-
-        If target_frequency is None, values are taken at the frequency
-        closest to zero. Otherwise, values are evaluated at the nearest
-        frequency to target_frequency.
-        """
-        self.results["T1"], self.results["T2"] = compute_relaxation_times(
-            self.results["f"], self.results["R1"], self.results["R2"], self.target_frequency)
-
     def _calculate_error_estimates(self):
         """Std and SEM of R1/R2 across atoms, from the Welford accumulators."""
         n = self._n_samples
@@ -368,4 +353,20 @@ class NMRD:
             M2 = self.results[f"{key}_M2"]
             variance = M2 / (n - 1) if n > 1 else np.zeros_like(M2)  # unbiased
             self.results[f"{key}_std"] = np.sqrt(variance)
-            self.results[f"{key}_sem"] = self.results[f"{key}_std"] / np.sqrt(n)
+            self.results[f"{key}_err"] = self.results[f"{key}_std"] / np.sqrt(n)
+
+    def _calculate_relaxationtime(self):
+        """Calculate T1/T2 spectra from R1/R2 and uncertainties."""
+
+        (
+            self.results["T1"],
+            self.results["T2"],
+            self.results["T1_err"],
+            self.results["T2_err"],
+        ) = compute_relaxation_times(
+            self.results["f"],
+            self.results["R1"],
+            self.results["R2"],
+            self.results["R1_err"],
+            self.results["R2_err"],
+        )

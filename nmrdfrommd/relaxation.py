@@ -54,37 +54,44 @@ def compute_relaxation_rates(f, J, K, isotropic):
 
     return R1, R2  # s^-1, s^-1
 
-def compute_relaxation_times(f, R1, R2, target_frequency=None):
-    """Compute T1 and T2 relaxation times from relaxation rates R1, R2.
-
-    Values are evaluated at the frequency closest to target_frequency
-    (or to zero, if target_frequency is None). Protects against
-    divide-by-zero when a rate is numerically zero.
+def compute_relaxation_times(f, R1, R2, R1_err=None, R2_err=None):
+    """Compute T1/T2 relaxation times and uncertainties.
 
     Parameters
     ----------
     f : np.ndarray
         Frequency array, in MHz.
-    R1 : np.ndarray
-        Longitudinal relaxation rate, in s^-1, same shape as f.
-    R2 : np.ndarray
-        Transverse relaxation rate, in s^-1, same shape as f.
-    target_frequency : float, optional
-        Frequency at which to evaluate T1/T2, in MHz. If None, f=0 is used.
+    R1, R2 : np.ndarray
+        Relaxation rates, in s^-1.
+    R1_err, R2_err : np.ndarray, optional
+        Uncertainty on relaxation rates, in s^-1.
 
     Returns
     -------
-    T1, T2 : float
-        Relaxation times, in s. np.inf if the corresponding rate is ~0.
+    T1, T2 : np.ndarray
+        Relaxation times, in s.
+    T1_err, T2_err : np.ndarray
+        Uncertainties on relaxation times, in s.
     """
-    target = 0.0 if target_frequency is None else target_frequency  # MHz
-    idx = find_nearest(f, target)                                   # index, dimensionless
 
-    R1_val = R1[idx]  # s^-1
-    R2_val = R2[idx]  # s^-1
+    T1 = np.full_like(R1, np.inf, dtype=float)
+    T2 = np.full_like(R2, np.inf, dtype=float)
 
-    eps = 1e-20  # s^-1 (safety floor, sized for R1/R2 ~ 0.1-1e4 s^-1)
-    T1 = np.inf if np.isclose(R1_val, 0.0) else 1.0 / (R1_val + eps)  # s
-    T2 = np.inf if np.isclose(R2_val, 0.0) else 1.0 / (R2_val + eps)  # s
+    mask1 = ~np.isclose(R1, 0.0)
+    mask2 = ~np.isclose(R2, 0.0)
 
-    return T1, T2  # s, s
+    T1[mask1] = 1.0 / R1[mask1]
+    T2[mask2] = 1.0 / R2[mask2]
+
+    T1_err = None
+    T2_err = None
+
+    if R1_err is not None:
+        T1_err = np.zeros_like(R1)
+        T1_err[mask1] = R1_err[mask1] / R1[mask1]**2
+
+    if R2_err is not None:
+        T2_err = np.zeros_like(R2)
+        T2_err[mask2] = R2_err[mask2] / R2[mask2]**2
+
+    return T1, T2, T1_err, T2_err
