@@ -8,11 +8,53 @@ your changes, and submit a pull request for review.
 
 ## Development install
 
-For local development, install the package in editable mode:
+NMRDfromMD requires Python 3.12 or newer. For local development, install
+the package in editable mode together with the development tools
+(the `--group` option requires pip 25.1 or newer):
 
 ```bash
-pip install -e .
+pip install -e . --group test --group lint
 ```
+
+The `test` and `lint` dependency groups are defined in `pyproject.toml`
+and are never installed for end users.
+
+## Running the tests
+
+From the repository root:
+
+```bash
+pytest
+```
+
+With a coverage report (written to the terminal and to `htmlcov/`):
+
+```bash
+pytest --cov --cov-report=term-missing --cov-report=html
+```
+
+The editable install matters here: with a regular install, the tests
+import the copy in `site-packages` and coverage of `nmrdfrommd/` reads 0%.
+
+## Linting and type checking
+
+```bash
+ruff check .
+ruff format --check .
+ty check
+```
+
+These checks run in CI on every push and pull request, but are not
+blocking yet: findings are reported without failing the workflow.
+
+## Continuous integration
+
+The GitHub Actions workflow (`.github/workflows/python-app.yml`) runs:
+
+- the test suite on Python 3.12 and on the newest stable Python, and
+  uploads the coverage reports (`coverage.xml` and `htmlcov/`) as
+  workflow artifacts named `coverage-py<version>`;
+- ruff and ty, as a non-blocking job.
 
 ## Publish new pip version (1)
 
