@@ -1,5 +1,5 @@
 import numpy as np
-from nmrdfrommd.fourier import fourier_transform
+from nmrdfrommd.fourier import compute_spectral_density, fourier_transform
 
 
 def test_fourier_transform_frequency_axis():
@@ -40,3 +40,40 @@ def test_fourier_transform_sine_peak():
 
     # allow small numerical + leakage tolerance
     np.testing.assert_allclose(peak_freq, f_mhz, rtol=5e-2)
+
+def test_compute_spectral_density_matches_fourier_transform():
+    """For dim=1, compute_spectral_density reduces to a single fourier_transform call."""
+    t_ps = np.linspace(0, 10, 100)
+    signal = np.exp(-t_ps / 2.0)
+    gij = signal[np.newaxis, :]  # shape (1, n_frames)
+
+    f, J = compute_spectral_density(t_ps, gij, dim=1)
+
+    expected = fourier_transform(np.column_stack((t_ps, signal)))
+    np.testing.assert_allclose(f, expected[:, 0])
+    np.testing.assert_allclose(J[0], np.real(expected[:, 1]))
+
+def test_compute_spectral_density_multiple_components():
+    """Each component m is transformed independently; shapes and per-row results match."""
+    t_ps = np.linspace(0, 10, 64)
+    gij = np.stack([
+        np.exp(-t_ps / 2.0),
+        np.exp(-t_ps / 4.0),
+        np.zeros_like(t_ps),
+    ])
+
+    f, J = compute_spectral_density(t_ps, gij, dim=3)
+
+    assert J.shape == (3, len(f))
+    for m in range(3):
+        expected = fourier_transform(np.column_stack((t_ps, gij[m])))
+        np.testing.assert_allclose(J[m], np.real(expected[:, 1]))
+
+def test_compute_spectral_density_zero_signal_gives_zero_spectrum():
+    """A flat zero correlation function has zero spectral density everywhere."""
+    t_ps = np.linspace(0, 10, 50)
+    gij = np.zeros((1, len(t_ps)))
+
+    _, J = compute_spectral_density(t_ps, gij, dim=1)
+
+    np.testing.assert_allclose(J, 0.0)

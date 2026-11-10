@@ -16,10 +16,8 @@ from nmrdfrommd import NMRD
 
 
 @pytest.fixture
-def twomol_universe():
-    data = "datafiles/twomolecules/twomolecules.data"
-    trj = "datafiles/twomolecules/twomolecules.xtc"
-    return mda.Universe(data, trj)
+def twomol_universe(twomol_files):
+    return mda.Universe(*twomol_files)
 
 def test_nmr_initialization(twomol_universe):
     # Use first two atoms for both target and neighbor groups
