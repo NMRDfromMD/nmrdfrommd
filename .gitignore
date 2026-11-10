@@ -1,8 +1,11 @@
 **/__pycache__
 **/**.pyc
-**/.*npz
+*.npz
 **/.*lock
 build/
 *.egg-info/
 dist/
 tests/*.ipynb
+.coverage
+coverage.xml
+htmlcov/

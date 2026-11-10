@@ -1,5 +1,0 @@
-pytest
-coverage
-numpy
-scipy
-MDAnalysis
